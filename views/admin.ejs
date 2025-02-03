@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(45deg, #FF5722 50%, #796B63 50%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .user-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: #FF5722;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: bold;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        select:focus {
+            border-color: #FF5722;
+            outline: none;
+            box-shadow: 0 0 5px rgba(255, 87, 34, 0.2);
+        }
+
+        .site-checkbox-group {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f9f9f9;
+        }
+
+        .site-checkbox-group div {
+            margin: 5px 0;
+        }
+
+        .sites-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 5px;
+        }
+
+        .site-checkbox {
+            display: flex;
+            align-items: center;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        .site-checkbox input[type="checkbox"] {
+            margin-right: 6px;
+            cursor: pointer;
+        }
+
+        .site-checkbox:hover {
+            background-color: #e0e0e0;
+        }
+
+        .site-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .site-table th,
+        .site-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .site-table th {
+            background: #FF5722;
+            color: white;
+        }
+
+        .site-table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        .users-table td {
+            vertical-align: middle;
+            min-width: 120px;
+        }
+
+        .users-table input,
+        .users-table select {
+            width: 100%;
+            min-width: 150px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        .btn-edit {
+            background: #4CAF50;
+        }
+
+        .btn-edit:hover {
+            background: #45a049;
+        }
+
+        .btn-delete {
+            background: #ff4444;
+        }
+
+        .btn-delete:hover {
+            background: #cc0000;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+
+            .site-table {
+                display: block;
+                overflow-x: auto;
+            }
+
+            #projectSection {
+                display: none; /* ต้องไม่มี หรือปรับเป็น block */
+            }          
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Admin Panel</h1>
+
+        <!-- Add User Form -->
+        <div class="user-card">
+            <h2>เพิ่มผู้ใช้งานใหม่</h2>
+            <form action="/admin/add" method="POST">
+                <div class="form-group">
+                    <label for="username">ชื่อผู้ใช้งาน:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+        
+                <div class="form-group">
+                    <label for="password">รหัสผ่าน:</label>
+                    <div style="position: relative;">
+                        <input type="password" id="password" name="password" required>
+                        <i class="fas fa-eye password-toggle" onclick="togglePassword(this)"></i>
+                    </div>
+                </div>
+        
+                <div class="form-group">
+                    <label for="job_position">ตำแหน่ง:</label>
+                    <select id="job_position" name="job_position" required>
+                        <% jobPositions.forEach(position => { %>
+                            <option value="<%= position %>"><%= position %></option>
+                        <% }) %>
+                    </select>
+                </div>
+        
+                <div class="form-group">
+                    <label>ไซต์ที่สามารถเข้าถึงได้:</label>
+                    <div class="site-checkbox-group">
+                        <% sites.forEach(site => { %>
+                            <div class="site-checkbox">
+                                <input type="checkbox" id="new_site_<%= site.id %>" name="site_ids[]" value="<%= site.id %>">
+                                <label for="new_site_<%= site.id %>"><%= site.site_name %></label>
+                            </div>
+                        <% }) %>
+                    </div>
+                </div>
+        
+                <!-- ปุ่มเพิ่มผู้ใช้งาน -->
+                <div class="form-group">
+                    <button type="submit" class="btn-edit">เพิ่มผู้ใช้งาน</button>
+                </div>
+            </form>
+        </div>        
+
+        <!-- User List -->
+        <div class="user-card">
+            <h2>Existing Users</h2>
+            <!-- เพิ่มช่องค้นหาก่อนตาราง -->
+            <div class="search-container" style="margin-bottom: 20px;">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="ค้นหาผู้ใช้งาน..." 
+                    onkeyup="searchUser()"
+                    style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd;"
+                >
+            </div>
+
+            <div class="table-responsive">
+                <table class="site-table users-table">
+                    <thead>
+                        <tr>
+                            <th>ชื่อผู้ใช้งาน</th>
+                            <th>รหัสผ่าน</th>
+                            <th>ตำแหน่ง</th>
+                            <th>ไซต์ที่สามารถเข้าถึงได้</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <!-- ส่วนแสดงรายการ users -->
+                    <tbody id="userTable">
+                        <% users.forEach(user => { %>
+                        <tr>
+                            <td>
+                            <input type="text" id="username_<%= user.id %>" value="<%= user.username %>" required>
+                            </td>
+                            <td>
+                            <div style="position: relative;">
+                                <input type="password" id="password_<%= user.id %>" value="<%= user.password %>" required>
+                                <i class="fas fa-eye password-toggle" onclick="togglePassword(this)"></i>
+                            </div>
+                            </td>
+                            <td>
+                            <select id="job_position_<%= user.id %>">
+                                <% jobPositions.forEach(position => { %>
+                                <option value="<%= position %>" <%= user.job_position === position ? 'selected' : '' %>>
+                                    <%= position %>
+                                </option>
+                                <% }) %>
+                            </select>
+                            </td>
+                            <td>
+                            <div class="sites-list">
+                                <% sites.forEach(site => { %>
+                                <div class="site-checkbox">
+                                    <input 
+                                    type="checkbox" 
+                                    id="site_<%= user.id %>_<%= site.id %>" 
+                                    name="site_ids[]" 
+                                    value="<%= site.id %>"
+                                    <%= user.site_ids && user.site_ids.includes(site.id) ? 'checked' : '' %>
+                                    >
+                                    <label for="site_<%= user.id %>_<%= site.id %>">
+                                    <%= site.site_name %>
+                                    </label>
+                                </div>
+                                <% }) %>
+                            </div>
+                            </td>
+                            <td>
+                            <div class="action-buttons">
+                                <button type="button" class="btn-edit update-button" data-user-id="<%= user.id %>">อัปเดต</button>
+                                <button type="button" class="btn-delete delete-button" data-user-id="<%= user.id %>">ลบ</button>                                                                                               
+                            </div>
+                            </td>
+                        </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="project-management">
+                <h2>โครงการ</h2>
+                <div id="projectSection">
+                    <!-- ตารางโครงการ -->
+                    <table class="site-table projects-table">
+                        <thead>
+                            <tr>
+                                <th>ชื่อโครงการ</th>
+                                <th>การจัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectTable">
+                            <% sites.forEach(site => { %>
+                            <tr>
+                                <td>
+                                    <input type="text" id="site_name_<%= site.id %>" value="<%= site.site_name %>" disabled>
+                                </td>
+                                <td>
+                                    <button class="btn-edit" data-site-id="<%= site.id %>" onclick="enableProjectEdit('<%= site.id %>')">แก้ไข</button>
+                                    <button class="btn-delete" data-site-id="<%= site.id %>" onclick="deleteProject('<%= site.id %>')">ลบ</button>
+                                    <button class="btn-save" data-site-id="<%= site.id %>" onclick="saveProjectChanges('<%= site.id %>')" style="display:none;">บันทึก</button>                                    
+                                </td>
+                            </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                    <!-- เพิ่มโครงการ -->
+                    <div class="add-project">
+                        <h3>เพิ่มโครงการใหม่</h3>
+                        <input type="text" id="new_project_name" placeholder="ชื่อโครงการ">
+                        <button class="btn-add" onclick="addNewProject()">เพิ่มโครงการ</button>
+                    </div>
+                </div>
+            </div>            
+        
+        <div id="toast" style="display: none; position: fixed; bottom: 20px; right: 20px; background: #333; color: #fff; padding: 10px; border-radius: 5px; z-index: 1000;">ข้อความแจ้งเตือน</div>
+
+    <script src="/js/adminFrontend.js"></script>
+
+</body>
+</html>
