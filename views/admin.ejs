@@ -298,52 +298,56 @@
                     <!-- ส่วนแสดงรายการ users -->
                     <tbody id="userTable">
                         <% users.forEach(user => { %>
-                        <tr>
+                        <tr id="user_row_<%= user.id %>">
                             <td>
-                            <input type="text" id="username_<%= user.id %>" value="<%= user.username %>" required>
+                                <input type="text" id="username_<%= user.id %>" value="<%= user.username %>" required>
                             </td>
                             <td>
-                            <div style="position: relative;">
-                                <input type="password" id="password_<%= user.id %>" value="<%= user.password %>" required>
-                                <i class="fas fa-eye password-toggle" onclick="togglePassword(this)"></i>
-                            </div>
-                            </td>
-                            <td>
-                            <select id="job_position_<%= user.id %>">
-                                <% jobPositions.forEach(position => { %>
-                                <option value="<%= position %>" <%= user.job_position === position ? 'selected' : '' %>>
-                                    <%= position %>
-                                </option>
-                                <% }) %>
-                            </select>
-                            </td>
-                            <td>
-                            <div class="sites-list">
-                                <% sites.forEach(site => { %>
-                                <div class="site-checkbox">
-                                    <input 
-                                    type="checkbox" 
-                                    id="site_<%= user.id %>_<%= site.id %>" 
-                                    name="site_ids[]" 
-                                    value="<%= site.id %>"
-                                    <%= user.site_ids && user.site_ids.includes(site.id) ? 'checked' : '' %>
-                                    >
-                                    <label for="site_<%= user.id %>_<%= site.id %>">
-                                    <%= site.site_name %>
-                                    </label>
+                                <div style="position: relative;">
+                                    <input type="password" id="password_<%= user.id %>" value="<%= user.password %>" required>
+                                    <i class="fas fa-eye password-toggle" onclick="togglePassword(this)"></i>
                                 </div>
-                                <% }) %>
-                            </div>
                             </td>
                             <td>
-                            <div class="action-buttons">
-                                <button type="button" class="btn-edit update-button" data-user-id="<%= user.id %>">อัปเดต</button>
-                                <button type="button" class="btn-delete delete-button" data-user-id="<%= user.id %>">ลบ</button>                                                                                               
-                            </div>
+                                <select id="job_position_<%= user.id %>">
+                                    <% jobPositions.forEach(position => { %>
+                                    <option value="<%= position %>" <%= user.job_position === position ? 'selected' : '' %>>
+                                        <%= position %>
+                                    </option>
+                                    <% }) %>
+                                </select>
+                            </td>
+                            <td>
+                                <div class="sites-list">
+                                    <% sites.forEach(site => { %>
+                                    <div class="site-checkbox">
+                                        <input 
+                                            type="checkbox" 
+                                            id="site_<%= user.id %>_<%= site.id %>" 
+                                            name="site_ids[]" 
+                                            value="<%= site.id %>"
+                                            <%= user.site_ids && user.site_ids.includes(site.id) ? 'checked' : '' %>
+                                        >
+                                        <label for="site_<%= user.id %>_<%= site.id %>">
+                                            <%= site.site_name %>
+                                        </label>
+                                    </div>
+                                    <% }) %>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button type="button" class="btn-edit update-button" data-user-id="<%= user.id %>">
+                                        อัปเดต
+                                    </button>
+                                    <button type="button" class="btn-delete delete-button" data-user-id="<%= user.id %>">
+                                        ลบ
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                         <% }) %>
-                    </tbody>
+                    </tbody>                    
                 </table>
             </div>
             
@@ -380,10 +384,21 @@
                         <button class="btn-add" onclick="addNewProject()">เพิ่มโครงการ</button>
                     </div>
                 </div>
-            </div>            
-        
-        <div id="toast" style="display: none; position: fixed; bottom: 20px; right: 20px; background: #333; color: #fff; padding: 10px; border-radius: 5px; z-index: 1000;">ข้อความแจ้งเตือน</div>
+            </div>    
 
+        <div id="toast" style="
+        display: none;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        z-index: 1000;
+        font-size: 14px;
+      "></div>
+              
     <script src="/js/adminFrontend.js"></script>
 
 </body>
