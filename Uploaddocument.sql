@@ -1,7 +1,7 @@
--- ลบฐานข้อมูลทั้งหมดและสร้างใหม่
-DROP DATABASE IF EXISTS Uploaddocument;
-CREATE DATABASE IF NOT EXISTS Uploaddocument;
-USE Uploaddocument;
+-- ลบฐานข้อมูลเดิม (ถ้ามี) และสร้างใหม่
+DROP DATABASE IF EXISTS railway;
+CREATE DATABASE IF NOT EXISTS railway;
+USE railway;
 
 -- ตารางโครงการ
 CREATE TABLE sites (
