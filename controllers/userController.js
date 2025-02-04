@@ -1,9 +1,12 @@
-const bcrypt = require("bcrypt");
+const bcrypt = require('bcryptjs');
 const { poolPromise } = require("../config/database");
 
 // แสดงหน้า Login
 exports.getLoginPage = (req, res) => {
-  res.render("login", { title: "Login Page", errorMessage: null });
+  res.render("login", {
+    title: "Login Page",
+    errorMessage: null, // กำหนดค่าเริ่มต้นของข้อความผิดพลาดให้เป็น null
+  });
 };
 
 // จัดการการ Login
@@ -11,36 +14,47 @@ exports.handleLogin = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // ดึงข้อมูลผู้ใช้จากฐานข้อมูล
-    const [users] = await poolPromise.query("SELECT * FROM users WHERE username = ?", [username]);
+    // ค้นหาข้อมูลผู้ใช้จากฐานข้อมูล
+    const [users] = await poolPromise.query(
+      "SELECT * FROM users WHERE username = ?",
+      [username]
+    );
+
+    // ถ้าไม่พบผู้ใช้ ให้ส่งกลับพร้อมข้อความผิดพลาด
     if (users.length === 0) {
-      return res.render("login", { title: "Login Page", errorMessage: "Invalid username or password" });
+      return res.render("login", {
+        title: "Login Page",
+        errorMessage: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", // กรณีไม่พบผู้ใช้
+      });
     }
 
     const user = users[0];
 
-    // ตรวจสอบรหัสผ่าน
+    // ตรวจสอบรหัสผ่านด้วย bcrypt
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.render("login", { title: "Login Page", errorMessage: "Invalid username or password" });
+      return res.render("login", {
+        title: "Login Page",
+        errorMessage: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", // กรณีรหัสผ่านผิด
+      });
     }
 
-    // เก็บข้อมูลผู้ใช้ในเซสชัน
+    // บันทึกข้อมูลผู้ใช้ในเซสชัน
     req.session.userId = user.id;
     req.session.username = user.username;
     req.session.role = user.role;
 
-    console.log("Session after login:", req.session);
+    console.log("Session หลังการล็อกอิน:", req.session);
 
-    // ตรวจสอบ role และ Redirect
+    // ตรวจสอบ role และเปลี่ยนเส้นทาง
     if (user.role === "admin") {
       return res.redirect("/admin");
     } else {
       return res.redirect("/user/menu");
     }
   } catch (err) {
-    console.error("Error during login:", err);
-    res.status(500).send("An error occurred during login");
+    console.error("เกิดข้อผิดพลาดระหว่างการล็อกอิน:", err);
+    return res.status(500).send("เกิดข้อผิดพลาดในระบบ");
   }
 };
 
@@ -48,10 +62,10 @@ exports.handleLogin = async (req, res) => {
 exports.logout = (req, res) => {
   req.session.destroy((err) => {
     if (err) {
-      console.error("Logout failed:", err);
-      return res.status(500).send("Logout failed");
+      console.error("การออกจากระบบล้มเหลว:", err);
+      return res.status(500).send("การออกจากระบบล้มเหลว");
     }
-    res.redirect("/login");
+    return res.redirect("/login");
   });
 };
 
@@ -61,8 +75,8 @@ exports.getUserMenu = (req, res) => {
     return res.redirect("/login");
   }
 
-  res.render("userMenu", { 
-    title: "User Menu", 
-    username: req.session.username || "User"
+  res.render("userMenu", {
+    title: "User Menu",
+    username: req.session.username || "User", // แสดงชื่อผู้ใช้จาก session
   });
 };

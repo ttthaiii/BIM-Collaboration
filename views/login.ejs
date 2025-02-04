@@ -36,6 +36,14 @@
             margin-bottom: 1.5rem;
         }
 
+        .error-message {
+            color: red;
+            text-align: center;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+
         .form-group {
             margin-bottom: 1.2rem;
             position: relative;
@@ -90,25 +98,32 @@
 <body>
     <div class="login-container">
         <h1>Login</h1>
-        <% if (typeof error !== 'undefined') { %>
-            <div class="alert alert-danger">
-                <%= error %>
+
+        <!-- การแสดงข้อความข้อผิดพลาด -->
+        <% if (errorMessage) { %>
+            <div class="error-message">
+                <%= errorMessage %>
             </div>
-        <% } %>        
+        <% } %>
+
         <form action="/login" method="POST">
             <div class="form-group">
               <label for="username">Username</label>
-              <input type="text" id="username" name="username" value="admin" required>
+              <input type="text" id="username" name="username" value="<%= typeof username !== 'undefined' ? username : '' %>" required>
             </div>
             <div class="form-group">
               <label for="password">Password</label>
-              <input type="password" id="password" name="password" required>
+              <div style="position: relative;">
+                  <input type="password" id="password" name="password" required>
+                  <i class="fas fa-eye password-toggle" onclick="togglePassword()"></i>
+              </div>
             </div>
             <button type="submit">Login</button>
           </form>
     </div>
 
     <script>
+        // ฟังก์ชันเปิด/ปิดการมองเห็นรหัสผ่าน
         function togglePassword() {
             const passwordInput = document.getElementById('password');
             const toggleIcon = document.querySelector('.password-toggle');
