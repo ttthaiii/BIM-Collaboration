@@ -50,34 +50,42 @@ app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   
   try {
-    // ค้นหาผู้ใช้จากฐานข้อมูล
-    const [users] = await pool.query(
-      'SELECT * FROM users WHERE username = ? AND password = ?',
-      [username, password]
-    );
+      // ค้นหาผู้ใช้จากฐานข้อมูล
+      const [rows] = await pool.query(
+          'SELECT * FROM users WHERE username = ?',
+          [username]
+      );
 
-    if (users.length > 0) {
-      const user = users[0];
-      req.session.user = {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        job_position: user.job_position
-      };
+      if (rows.length > 0) {
+          const user = rows[0];
+          // ตรวจสอบรหัสผ่าน
+          if (password === user.password) {  // ในกรณีที่ยังไม่ได้เข้ารหัส
+              req.session.user = {
+                  id: user.id,
+                  username: user.username,
+                  role: user.role,
+                  job_position: user.job_position
+              };
 
-      // ถ้าเป็น admin ให้ไปที่หน้า admin
-      if (user.role === 'admin') {
-        res.redirect('/admin');
+              console.log('Logged in user:', req.session.user); // เพิ่ม logging
+
+              // ตรวจสอบ role และ redirect ไปยังหน้าที่เหมาะสม
+              if (user.role === 'admin') {
+                  res.redirect('/admin');
+              } else {
+                  res.redirect('/user');
+              }
+          } else {
+              res.render('login', { error: 'รหัสผ่านไม่ถูกต้อง' });
+          }
       } else {
-        // ถ้าเป็น user ปกติให้ไปที่หน้า user
-        res.redirect('/user');
+          res.render('login', { error: 'ไม่พบชื่อผู้ใช้นี้' });
       }
-    } else {
-      res.render('login', { error: 'Invalid username or password' });
-    }
   } catch (err) {
-    console.error('Login error:', err);
-    res.render('login', { error: 'An error occurred during login' });
+      console.error('Login error:', err);
+      console.log('Session after login:', req.session);
+      console.log('User role:', req.session.user.role);
+      res.render('login', { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' });
   }
 });
 

@@ -3,24 +3,21 @@ const router = express.Router();
 const adminController = require('../controllers/adminController');
 const { isLoggedIn, isAdmin } = require('../middleware/auth');
 
-// เส้นทางที่ต้องการการล็อกอินและสิทธิ์ Admin
-router.get('/', isLoggedIn, isAdmin, adminController.getAdminPage);
+// ใส่ middleware ทั้ง isLoggedIn และ isAdmin สำหรับทุก route
+router.use(isLoggedIn, isAdmin);
 
-// เพิ่มผู้ใช้ใหม่
-router.post('/add', isLoggedIn, isAdmin, adminController.addUser);
+// หน้า Admin
+router.get('/', adminController.getAdminPage);
 
-// ลบผู้ใช้งาน
-router.post('/delete', isLoggedIn, isAdmin, adminController.deleteUser);
+// จัดการผู้ใช้
+router.post('/users/add', adminController.addUser);
+router.post('/users/update', adminController.updateUser);
+router.post('/users/delete', adminController.deleteUser);
+router.get('/users/search', adminController.searchUsers);
 
 // จัดการโครงการ
-router.post('/sites/add', isLoggedIn, isAdmin, adminController.addSite);
-router.post('/sites/update', isLoggedIn, isAdmin, adminController.updateSite);
-router.post('/sites/delete', isLoggedIn, isAdmin, adminController.deleteSite);
-
-// จัดการการอัปเดตผู้ใช้
-router.post('/users/update', isLoggedIn, isAdmin, adminController.updateUser);
-
-// ค้นหาผู้ใช้งาน
-router.get('/users/search', isLoggedIn, isAdmin, adminController.searchUsers);
+router.post('/sites/add', adminController.addSite);
+router.post('/sites/update', adminController.updateSite);
+router.post('/sites/delete', adminController.deleteSite);
 
 module.exports = router;
