@@ -1,5 +1,5 @@
 const { pool } = require('./../config/database');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs'); // เปลี่ยนจาก bcrypt เป็น bcryptjs
 
 // Helper Function: Transform site_ids string to array
 const transformUsers = (users) => {
