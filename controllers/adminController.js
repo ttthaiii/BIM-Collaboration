@@ -1,5 +1,14 @@
-const { poolPromise } = require('../config/database');
+const { poolPromise } = require('./config/database');
 
+poolPromise.getConnection()
+  .then(connection => {
+    console.log('Database connected successfully');
+    connection.release(); // ปล่อย connection หลังใช้งาน
+  })
+  .catch(error => {
+    console.error('Database connection failed:', error);
+  });
+  
 // Helper Function: แปลง site_ids string เป็น array
 const transformUsers = (users) => {
   return users.map(user => ({

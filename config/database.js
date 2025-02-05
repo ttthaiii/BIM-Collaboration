@@ -1,26 +1,26 @@
 const mysql = require('mysql2');
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost', // ตรวจสอบ host
-  user: process.env.DB_USER || 'root', // username
-  password: process.env.DB_PASSWORD || '', // password
-  database: process.env.DB_DATABASE || 'test', // database
-  port: process.env.DB_PORT || 3306, // port ค่า default 3306
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_DATABASE || 'test',
+  port: process.env.DB_PORT || 3306,
   waitForConnections: true,
-  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 10, // ใช้ connection pool limit
+  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 10,
   queueLimit: 0,
-  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT, 10) || 10000, // ค่า timeout
+  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT, 10) || 10000,
   ssl: process.env.DB_SSL === 'true' 
     ? { 
         rejectUnauthorized: false,
-        ca: process.env.DB_CA || undefined, // เพิ่ม Certificate Authority ถ้าจำเป็น
-        cert: process.env.DB_CERT || undefined, // เพิ่ม Certificate
-        key: process.env.DB_KEY || undefined, // เพิ่ม Key
+        ca: process.env.DB_CA || undefined,
+        cert: process.env.DB_CERT || undefined,
+        key: process.env.DB_KEY || undefined,
       } 
     : false,
 });
 
-const poolPromise = pool.promise();
+module.exports = { poolPromise: pool };
 
 // ตรวจสอบการเชื่อมต่อเริ่มต้น
 (async () => {
@@ -35,6 +35,15 @@ const poolPromise = pool.promise();
     console.error('Error:', err.message);
   }
 })();
+
+pool.getConnection()
+    .then(conn => {
+        console.log('Successfully connected to the database.');
+        conn.release();
+    })
+    .catch(err => {
+        console.error('Database connection failed:', err);
+    });
 
 // Export Pool สำหรับการใช้งานใน Controller
 module.exports = { poolPromise };
