@@ -50,16 +50,18 @@ app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   
   try {
-      // ค้นหาผู้ใช้จากฐานข้อมูล
-      const [rows] = await pool.query(
+      // ค้นหาผู้ใช้
+      const [users] = await pool.query(
           'SELECT * FROM users WHERE username = ?',
           [username]
       );
 
-      if (rows.length > 0) {
-          const user = rows[0];
+      if (users.length > 0) {
+          const user = users[0];
+          
           // ตรวจสอบรหัสผ่าน
-          if (password === user.password) {  // ในกรณีที่ยังไม่ได้เข้ารหัส
+          if (password === user.password) {
+              // เก็บข้อมูลใน session
               req.session.user = {
                   id: user.id,
                   username: user.username,
@@ -67,25 +69,34 @@ app.post('/login', async (req, res) => {
                   job_position: user.job_position
               };
 
-              console.log('Logged in user:', req.session.user); // เพิ่ม logging
+              console.log('Session data:', req.session); // Debug log
 
-              // ตรวจสอบ role และ redirect ไปยังหน้าที่เหมาะสม
+              // ตรวจสอบ role และ redirect
               if (user.role === 'admin') {
-                  res.redirect('/admin');
+                  console.log('Redirecting to admin page...'); // Debug log
+                  return res.redirect('/admin');
               } else {
-                  res.redirect('/user');
+                  console.log('Redirecting to user page...'); // Debug log
+                  return res.redirect('/user');
               }
-          } else {
-              res.render('login', { error: 'รหัสผ่านไม่ถูกต้อง' });
           }
-      } else {
-          res.render('login', { error: 'ไม่พบชื่อผู้ใช้นี้' });
       }
+      
+      // ถ้าล็อกอินไม่สำเร็จ
+      res.render('login', { error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+      
   } catch (err) {
       console.error('Login error:', err);
-      console.log('Session after login:', req.session);
-      console.log('User role:', req.session.user.role);
       res.render('login', { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' });
+  }
+});
+
+app.get('/admin', (req, res) => {
+  // ตรวจสอบว่ามี session และเป็น admin
+  if (req.session && req.session.user && req.session.user.role === 'admin') {
+      res.redirect('/admin/dashboard'); // หรือ path ที่ถูกต้องของคุณ
+  } else {
+      res.redirect('/login');
   }
 });
 
