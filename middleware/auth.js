@@ -1,5 +1,6 @@
 // ตรวจสอบการล็อกอิน
 const isLoggedIn = (req, res, next) => {
+  console.log('Checking login status:', req.session?.user);
   if (req.session && req.session.user) {
       next();
   } else {
@@ -9,7 +10,8 @@ const isLoggedIn = (req, res, next) => {
 
 // ตรวจสอบสิทธิ์ Admin
 const isAdmin = (req, res, next) => {
-  if (req.session && req.session.user && req.session.user.role === 'admin') {
+  console.log('Checking admin rights:', req.session?.user);
+  if (req.session?.user?.role === 'admin') {
       next();
   } else {
       res.status(403).render('error', {
@@ -20,12 +22,12 @@ const isAdmin = (req, res, next) => {
           }
       });
   }
-  console.log('Checking admin rights:', req.session.user);
 };
 
 // ตรวจสอบสิทธิ์ User
 const isUser = (req, res, next) => {
-  if (req.session && req.session.user && req.session.user.role === 'user') {
+  console.log('Checking user rights:', req.session?.user);
+  if (req.session?.user?.role === 'user') {
       next();
   } else {
       res.status(403).render('error', {
