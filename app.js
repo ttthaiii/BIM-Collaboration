@@ -13,21 +13,14 @@ const adminRoutes = require('./routes/admin');
 
 const app = express();
 
+// Trust proxy (จำเป็นสำหรับ HTTPS บน Railway)
+app.set('trust proxy', 1);
+
 // Basic middleware
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Cache control middleware
-app.use((req, res, next) => {
-  res.set({
-    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-    'Pragma': 'no-cache',
-    'Expires': '0'
-  });
-  next();
-});
 
 // Session Configuration
 app.use(session({
@@ -38,10 +31,12 @@ app.use(session({
   name: 'sessionId',
   resave: false,
   saveUninitialized: false,
+  proxy: true, // เพิ่มการรองรับ proxy
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: null // Session cookie
+    secure: process.env.NODE_ENV === 'production', // ใช้ HTTPS ใน production
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
 
@@ -79,33 +74,22 @@ app.post('/login', async (req, res) => {
     if (rows.length > 0 && password === rows[0].password) {
       const user = rows[0];
       
-      // สร้าง session ใหม่
-      req.session.regenerate((err) => {
+      req.session.user = {
+        id: user.id,
+        username: user.username,
+        role: user.role
+      };
+      
+      // Save session explicitly
+      req.session.save((err) => {
         if (err) {
-          console.error('Session regenerate error:', err);
+          console.error('Session save error:', err);
           return res.status(500).json({ error: 'Session error' });
         }
-
-        // เก็บข้อมูล user และ tabId
-        req.session.user = {
-          id: user.id,
-          username: user.username,
-          role: user.role
-        };
         
-        // สร้าง tabId และ timestamp
-        req.session.tabId = Date.now().toString();
-        req.session.lastAccess = Date.now();
-
-        req.session.save((err) => {
-          if (err) {
-            console.error('Session save error:', err);
-            return res.status(500).json({ error: 'Session error' });
-          }
-          
-          console.log('Login successful:', req.session);
-          res.json({ success: true });
-        });
+        console.log('Login successful, session:', req.session);
+        const redirectUrl = user.role === 'admin' ? '/admin' : '/user';
+        res.json({ success: true, redirectUrl });
       });
     } else {
       res.status(401).json({ error: 'Invalid credentials' });
@@ -119,11 +103,8 @@ app.post('/login', async (req, res) => {
 // Logout route
 app.get('/logout', (req, res) => {
   if (req.session) {
-    // ล้าง session และ cookie
     req.session.destroy((err) => {
-      if (err) {
-        console.error('Logout error:', err);
-      }
+      if (err) console.error('Logout error:', err);
       res.clearCookie('sessionId');
       res.redirect('/login');
     });
