@@ -1,20 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Error</title>
     <link rel="stylesheet" href="/css/style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .error-container {
+            text-align: center;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #dc3545;
+        }
+        .btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #007bff;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+    </style>
 </head>
 <body>
     <div class="error-container">
-        <h1><%= typeof message !== 'undefined' ? message : 'Error' %></h1>
+        <h1>Error: <%= typeof message !== 'undefined' ? message : 'An error occurred' %></h1>
         
         <% if (typeof status !== 'undefined' && status === 404) { %>
-            <p>Page not found</p>
+            <p>The page you are looking for does not exist.</p>
         <% } else { %>
-            <p>Something went wrong</p>
+            <p>Something went wrong. Please try again later.</p>
         <% } %>
         
+        <a href="javascript:history.back()" class="btn">Go Back</a>
         <a href="/" class="btn">Back to Home</a>
+        
+        <% if (process.env.NODE_ENV === 'development' && typeof error !== 'undefined') { %>
+            <pre style="text-align: left; margin-top: 20px; overflow-x: auto; background: #f1f1f1; padding: 10px; border-radius: 5px;">
+                <%= error.stack %>
+            </pre>
+        <% } %>
+        
+        <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
+            <div class="error-message">
+              <%= errorMessage %>
+            </div>
+          <% } %>
+          
     </div>
 </body>
 </html>

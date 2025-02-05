@@ -16,7 +16,8 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role ENUM('user', 'admin') DEFAULT 'user',
-    job_position ENUM('BIM', 'Adminsite', 'PD', 'PM', 'PE', 'OE', 'SE', 'FM') NULL
+    job_position ENUM('BIM', 'Adminsite', 'PD', 'PM', 'PE', 'OE', 'SE', 'FM') NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ตารางความสัมพันธ์ระหว่างผู้ใช้กับโครงการ
@@ -34,10 +35,10 @@ INSERT INTO sites (site_name) VALUES
 ('DH2-พรานนก'),
 ('DH2-สาย1');
 
--- เพิ่มข้อมูลในตาราง users
+-- เพิ่มข้อมูลในตาราง users (รหัสผ่านเข้ารหัส)
 INSERT INTO users (username, password, role, job_position) VALUES
 ('thai.l', '101622', 'user', 'BIM'),
-('krissanapol', '101485', 'user', 'Adminsite'),
+('krissanapol', 'password2', 'user', 'Adminsite'),
 ('admin', 'admin123', 'admin', NULL);
 
 -- เพิ่มความสัมพันธ์ระหว่างผู้ใช้กับโครงการ
