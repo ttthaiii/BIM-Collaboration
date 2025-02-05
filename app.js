@@ -1,111 +1,116 @@
 require('dotenv').config();
-const express = require("express");
-const bodyParser = require("body-parser");
-const path = require("path");
+const express = require('express');
 const session = require('express-session');
 const MemoryStore = require('memorystore')(session);
-const MySQLStore = require('express-mysql-session')(session);
-const cors = require('cors');
-const helmet = require('helmet');
+const path = require('path');
+const bodyParser = require('body-parser');
+const { pool } = require('./config/database');
 
 // Import routes
 const userRoutes = require('./routes/user');
-const adminRoutes = require("./routes/admin");
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
-// เลือก Store ตาม Environment
-let sessionStore;
-if (process.env.NODE_ENV === 'production') {
-  // MySQLStore สำหรับ Production
-  sessionStore = new MySQLStore({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
-  });
-} else {
-  // MemoryStore สำหรับ Development
-  sessionStore = new MemoryStore({
-    checkPeriod: 86400000, // ล้าง session ที่หมดอายุทุก 24 ชั่วโมง
-  });
-}
-
 // Session Configuration
-app.use(
-  session({
-    secret: 'your_secret_key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 1 วัน
-    },
-  })
-);
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your_secret_key',
+  resave: false,
+  saveUninitialized: false,
+  store: new MemoryStore({ 
+    checkPeriod: 86400000 
+  }),
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 
+  }
+}));
 
-// Security Middleware
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"], // อนุญาต CDN
-        styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"], // อนุญาต inline style
-        fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
-        imgSrc: ["'self'", "data:"],
-        connectSrc: ["'self'"],
-      },
-    },
-  })
-);
-
-app.use(cors());
-
-// Parse Middleware
+// Middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Middleware สำหรับส่ง session ไปยังทุก view
-app.use((req, res, next) => {
-  res.locals.currentUser = req.session;
-  next();
+// View engine setup
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// Basic routes
+app.get('/', (req, res) => {
+  res.render('login', { error: null });
 });
 
-// Static and View Setup
-app.use(express.static('public'));
-app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
-
-// Routes
-app.get("/", (req, res) => {
-  res.redirect("/login");
+app.get('/login', (req, res) => {
+  res.render('login', { error: null });
 });
 
-app.use('/', userRoutes);
-app.use("/admin", adminRoutes);
+// Login route with database authentication
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  try {
+    // ค้นหาผู้ใช้จากฐานข้อมูล
+    const [users] = await pool.query(
+      'SELECT * FROM users WHERE username = ? AND password = ?',
+      [username, password]
+    );
 
-// Error Middleware
-app.use((req, res, next) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.log("Current session:", req.session);
+    if (users.length > 0) {
+      const user = users[0];
+      req.session.user = {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        job_position: user.job_position
+      };
+
+      // ถ้าเป็น admin ให้ไปที่หน้า admin
+      if (user.role === 'admin') {
+        res.redirect('/admin');
+      } else {
+        // ถ้าเป็น user ปกติให้ไปที่หน้า user
+        res.redirect('/user');
+      }
+    } else {
+      res.render('login', { error: 'Invalid username or password' });
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    res.render('login', { error: 'An error occurred during login' });
   }
-  next();
 });
 
-app.use((err, req, res, next) => {
-  console.error(err.stack); // Log ข้อผิดพลาดใน console
-  res.status(err.status || 500).render('error', {
-    message: err.message || 'Something went wrong',
-    status: err.status || 500,
-    error: process.env.NODE_ENV === 'development' ? err : {}, // แสดง error stack เฉพาะในโหมด development
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/login');
+});
+
+// Mount routes
+app.use('/user', userRoutes);
+app.use('/admin', adminRoutes);
+
+// 404 Error Handler
+app.use((req, res, next) => {
+  res.status(404).render('error', {
+    message: 'Route not found',
+    error: { status: 404 }
   });
 });
 
-// Start Server
+// Error Handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).render('error', {
+    message: err.message || 'Something went wrong!',
+    error: process.env.NODE_ENV === 'development' ? err : {}
+  });
+});
+
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+module.exports = app;

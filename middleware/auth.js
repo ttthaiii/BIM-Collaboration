@@ -1,21 +1,25 @@
-const authMiddleware = {
-  // ตรวจสอบว่าผู้ใช้งานล็อกอินแล้วหรือยัง
-  isLoggedIn: (req, res, next) => {
-    if (req.session && req.session.userId) {
-      next();
-    } else {
-      res.redirect('/login');
-    }
-  },
-
-  // ตรวจสอบสิทธิ์ Admin
-  isAdmin: (req, res, next) => {
-    if (req.session && req.session.role === 'admin') {
-      next();
-    } else {
-      res.status(403).send('Access Denied: Admin privileges required.');
-    }
-  },
+// ตรวจสอบการล็อกอิน
+const isLoggedIn = (req, res, next) => {
+  if (req.session && req.session.user) {
+    next();
+  } else {
+    res.redirect('/login');
+  }
 };
 
-module.exports = authMiddleware;
+// ตรวจสอบสิทธิ์ Admin
+const isAdmin = (req, res, next) => {
+  if (req.session && req.session.user && req.session.user.role === 'admin') {
+    next();
+  } else {
+    res.status(403).render('error', {
+      message: 'Access Denied',
+      error: { status: 403, stack: 'You do not have permission to access this page' }
+    });
+  }
+};
+
+module.exports = {
+  isLoggedIn,
+  isAdmin
+};

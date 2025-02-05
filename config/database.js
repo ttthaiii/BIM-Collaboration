@@ -1,49 +1,39 @@
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise');
+
+// Connection string from Railway
+const DATABASE_URL = 'mysql://root:CLrDiQvOhDsEjidrrkGHsDZZntOUxSbt@junction.proxy.rlwy.net:49260/railway';
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_DATABASE || 'test',
-  port: process.env.DB_PORT || 3306,
+  uri: DATABASE_URL,
   waitForConnections: true,
-  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 10,
+  connectionLimit: 10,
   queueLimit: 0,
-  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT, 10) || 10000,
-  ssl: process.env.DB_SSL === 'true' 
-    ? { 
-        rejectUnauthorized: false,
-        ca: process.env.DB_CA || undefined,
-        cert: process.env.DB_CERT || undefined,
-        key: process.env.DB_KEY || undefined,
-      } 
-    : false,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
-module.exports = { poolPromise: pool };
-
-// ตรวจสอบการเชื่อมต่อเริ่มต้น
-(async () => {
+const testConnection = async () => {
   try {
-    const connection = await poolPromise.getConnection();
-    console.log('Successfully connected to the database.');
+    const connection = await pool.getConnection();
+    console.log('✓ Database connected successfully');
+    
+    // Test query
+    const [result] = await connection.query('SELECT 1 + 1 AS result');
+    console.log('✓ Query test successful');
+    
     connection.release();
   } catch (err) {
-    console.error('Database connection failed:');
-    console.error('Host:', process.env.DB_HOST || 'localhost');
-    console.error('Port:', process.env.DB_PORT || 3306);
-    console.error('Error:', err.message);
-  }
-})();
-
-pool.getConnection()
-    .then(conn => {
-        console.log('Successfully connected to the database.');
-        conn.release();
-    })
-    .catch(err => {
-        console.error('Database connection failed:', err);
+    console.error('✗ Database connection error:', {
+      message: err.message,
+      code: err.code,
+      errno: err.errno
     });
+  }
+};
 
-// Export Pool สำหรับการใช้งานใน Controller
-module.exports = { poolPromise };
+testConnection();
+
+module.exports = { pool };
