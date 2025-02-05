@@ -1,5 +1,5 @@
 const { pool } = require('./../config/database');
-const bcrypt = require('bcryptjs'); // เปลี่ยนจาก bcrypt เป็น bcryptjs
+const bcrypt = require('bcryptjs');
 
 // Helper Function: Transform site_ids string to array
 const transformUsers = (users) => {
@@ -12,7 +12,10 @@ const transformUsers = (users) => {
 // Get Admin Page
 exports.getAdminPage = async (req, res) => {
   try {
-    const jobPositions = ["Manager", "Supervisor", "Staff"];
+    // กำหนดตำแหน่งตามที่มีในฐานข้อมูล
+    const jobPositions = ["BIM", "Adminsite", "PD", "PM", "PE", "OE", "SE", "FM"];
+    
+    // ใช้ pool แทน poolPromise
     const [sites] = await pool.query("SELECT * FROM sites");
     const [users] = await pool.query(`
       SELECT 
@@ -26,17 +29,19 @@ exports.getAdminPage = async (req, res) => {
       GROUP BY u.id
     `);
 
+    // ส่งข้อมูลไปที่ view
     res.render("admin", {
       title: "Admin Page",
-      jobPositions,
-      sites,
+      jobPositions: jobPositions, // ส่งค่าตำแหน่งงาน
+      sites: sites,
       users: transformUsers(users),
-      currentUser: req.session?.user || {},
+      currentUser: req.session.user || {} // แก้ไขการเข้าถึง session
     });
+
   } catch (err) {
-    console.error("Error fetching admin data:", err.message);
+    console.error("Error fetching admin data:", err);
     res.status(500).render("error", { 
-      message: "Failed to fetch admin data",
+      message: "Failed to load admin page",
       error: process.env.NODE_ENV === 'development' ? err : {}
     });
   }
