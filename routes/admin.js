@@ -22,4 +22,15 @@ router.post('/sites/add', adminController.addSite);
 router.post('/sites/update', adminController.updateSite);
 router.post('/sites/delete', adminController.deleteSite);
 
+router.get('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error("Failed to destroy session:", err);
+      return res.status(500).send("Failed to logout");
+    }
+    res.clearCookie('connect.sid'); // ล้างคุกกี้
+    res.redirect('/login'); // กลับไปหน้า Login
+  });
+});
+
 module.exports = router;

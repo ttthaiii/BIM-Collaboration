@@ -40,8 +40,26 @@ const isUser = (req, res, next) => {
   }
 };
 
+const authMiddleware = {
+  isLoggedIn: (req, res, next) => {
+    if (req.session && req.session.userId) {
+      next(); // ผู้ใช้งานยังล็อกอินอยู่
+    } else {
+      res.redirect('/login'); // บังคับไปหน้า Login ถ้าเซสชันหมดอายุ
+    }
+  },
+  isAdmin: (req, res, next) => {
+    if (req.session && req.session.role === 'admin') {
+      next(); // ผู้ใช้งานมีสิทธิ์ Admin
+    } else {
+      res.status(403).send('Access Denied: Admin privileges required');
+    }
+  },
+};
+
 module.exports = {
   isLoggedIn,
   isAdmin,
-  isUser
+  isUser,
+  authMiddleware
 };

@@ -13,19 +13,18 @@ const adminRoutes = require('./routes/admin');
 const app = express();
 
 // Session Configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your_secret_key',
-  resave: false,
-  saveUninitialized: false,
-  store: new MemoryStore({ 
-    checkPeriod: 86400000 
-  }),
-  cookie: {
-    secure: false, // set to true in production with HTTPS
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 
-  }
-}));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your_secret_key', // เปลี่ยน secret เป็นค่าสุ่มที่ปลอดภัย
+    resave: false, // ไม่บันทึกเซสชันใหม่หากไม่มีการเปลี่ยนแปลง
+    saveUninitialized: false, // ไม่บันทึกเซสชันที่ยังไม่มีการใช้งาน
+    cookie: {
+      httpOnly: true, // ป้องกันการโจมตี XSS
+      secure: process.env.NODE_ENV === 'production', // ใช้ secure true เมื่ออยู่ใน production
+      maxAge: 30 * 60 * 1000, // อายุเซสชัน 30 นาที (ค่าตัวอย่าง)
+    },
+  })
+);
 
 // Middleware
 app.use(bodyParser.json());
