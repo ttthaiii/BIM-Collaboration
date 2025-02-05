@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const MemoryStore = require('memorystore')(session);
 const path = require('path');
@@ -12,125 +13,134 @@ const adminRoutes = require('./routes/admin');
 
 const app = express();
 
-// Session Configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your_secret_key',
-  resave: false,
-  saveUninitialized: false,
-  store: new MemoryStore({ 
-    checkPeriod: 86400000 // ตรวจสอบเซสชันทุก 24 ชั่วโมง
-  }),
-  cookie: {
-    secure: false, // set to true in production with HTTPS
-    httpOnly: true,
-    maxAge:  60 * 60 * 1000, // 
-    sameSite: 'lax' // ป้องกันการเข้าถึงข้ามไซต์
-  }
-}));
-
-// Middleware
+// Basic middleware
+app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Cache control middleware
+app.use((req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  next();
+});
+
+// Session Configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  store: new MemoryStore({
+    checkPeriod: 86400000 // 24 hours
+  }),
+  name: 'sessionId',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: null // Session cookie
+  }
+}));
 
 // View engine setup
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Basic routes
+// Routes
 app.get('/', (req, res) => {
-  if (req.session && req.session.user) {
-    if (req.session.user.role === 'admin') {
-      res.redirect('/admin');
-    } else {
-      res.redirect('/user');
-    }
+  if (req.session.user) {
+    res.redirect(req.session.user.role === 'admin' ? '/admin' : '/user');
   } else {
     res.render('login', { error: null });
   }
 });
 
 app.get('/login', (req, res) => {
-  if (req.session && req.session.user) {
-    if (req.session.user.role === 'admin') {
-      res.redirect('/admin');
-    } else {
-      res.redirect('/user');
-    }
+  if (req.session.user) {
+    res.redirect(req.session.user.role === 'admin' ? '/admin' : '/user');
   } else {
     res.render('login', { error: null });
   }
 });
 
-// Login route with database authentication
+// Login route
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  
+
   try {
-      console.log('Login attempt:', { username });
+    const [rows] = await pool.execute(
+      'SELECT * FROM users WHERE username = ? LIMIT 1',
+      [username]
+    );
+
+    if (rows.length > 0 && password === rows[0].password) {
+      const user = rows[0];
       
-      const [rows] = await pool.execute(
-          'SELECT * FROM users WHERE username = ? LIMIT 1',
-          [username]
-      );
+      // สร้าง session ใหม่
+      req.session.regenerate((err) => {
+        if (err) {
+          console.error('Session regenerate error:', err);
+          return res.status(500).json({ error: 'Session error' });
+        }
 
-      if (rows.length > 0) {
-          const user = rows[0];
-          
-          if (password === user.password) {  // เช็ครหัสผ่านแบบ plain text
-              req.session.user = {
-                  id: user.id,
-                  username: user.username,
-                  role: user.role,
-                  job_position: user.job_position
-              };
+        // เก็บข้อมูล user และ tabId
+        req.session.user = {
+          id: user.id,
+          username: user.username,
+          role: user.role
+        };
+        
+        // สร้าง tabId และ timestamp
+        req.session.tabId = Date.now().toString();
+        req.session.lastAccess = Date.now();
 
-              console.log('User logged in:', req.session.user);
-
-              if (user.role === 'admin') {
-                  return res.redirect('/admin');
-              } else {
-                  return res.redirect('/user');
-              }
+        req.session.save((err) => {
+          if (err) {
+            console.error('Session save error:', err);
+            return res.status(500).json({ error: 'Session error' });
           }
-      }
-      
-      res.render('login', { error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+          
+          console.log('Login successful:', req.session);
+          res.json({ success: true });
+        });
+      });
+    } else {
+      res.status(401).json({ error: 'Invalid credentials' });
+    }
   } catch (err) {
-      console.error('Login error:', err);
-      res.render('login', { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' });
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
+// Logout route
 app.get('/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/login');
+  if (req.session) {
+    // ล้าง session และ cookie
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Logout error:', err);
+      }
+      res.clearCookie('sessionId');
+      res.redirect('/login');
+    });
+  } else {
+    res.redirect('/login');
+  }
 });
 
-// Mount routes - order matters!
+// Mount routes
 app.use('/admin', adminRoutes);
 app.use('/user', userRoutes);
 
-// 404 Error Handler
-app.use((req, res, next) => {
-  if (req.session.user) {
-    if (!req.session.sessionID) {
-      req.session.sessionID = req.sessionID;
-    } else if (req.session.sessionID !== req.sessionID) {
-      req.session.destroy(() => {
-        res.redirect('/login');
-      });
-      return;
-    }
-  }
-  next();
-});
-
-// Error Handler
+// Error handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('Error:', err.stack);
   res.status(500).render('error', {
-    message: err.message || 'Something went wrong!',
+    message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err : {}
   });
 });
@@ -138,7 +148,7 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
 
 module.exports = app;

@@ -62,9 +62,10 @@ exports.handleLogin = async (req, res) => {
 exports.logout = (req, res) => {
   req.session.destroy((err) => {
     if (err) {
-      console.error("การออกจากระบบล้มเหลว:", err);
-      return res.status(500).send("การออกจากระบบล้มเหลว");
+      console.error("Logout failed:", err);
+      return res.status(500).send("Logout failed");
     }
+    res.clearCookie("session_cookie_name"); // ล้างคุกกี้
     return res.redirect("/login");
   });
 };

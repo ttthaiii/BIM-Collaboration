@@ -8,7 +8,7 @@ router.use(isLoggedIn);
 router.use(isAdmin);
 
 // Admin main routes
-router.get('/', adminController.getAdminPage);
+router.get('/', isLoggedIn, isAdmin, adminController.getAdminPage);
 router.get('/dashboard', adminController.getAdminPage);
 
 // User management routes
