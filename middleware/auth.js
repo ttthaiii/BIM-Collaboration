@@ -1,10 +1,19 @@
 // ตรวจสอบการล็อกอิน
 const isLoggedIn = (req, res, next) => {
   console.log('Checking login status:', req.session?.user);
+
   if (req.session && req.session.user) {
-      next();
+    if (!req.session.sessionID) {
+      req.session.sessionID = req.sessionID;
+    } else if (req.session.sessionID !== req.sessionID) {
+      req.session.destroy(() => {
+        res.redirect('/login');
+      });
+      return;
+    }
+    next();
   } else {
-      res.redirect('/login');
+    res.redirect('/login');
   }
 };
 
@@ -40,26 +49,8 @@ const isUser = (req, res, next) => {
   }
 };
 
-const authMiddleware = {
-  isLoggedIn: (req, res, next) => {
-    if (req.session && req.session.userId) {
-      next(); // ผู้ใช้งานยังล็อกอินอยู่
-    } else {
-      res.redirect('/login'); // บังคับไปหน้า Login ถ้าเซสชันหมดอายุ
-    }
-  },
-  isAdmin: (req, res, next) => {
-    if (req.session && req.session.role === 'admin') {
-      next(); // ผู้ใช้งานมีสิทธิ์ Admin
-    } else {
-      res.status(403).send('Access Denied: Admin privileges required');
-    }
-  },
-};
-
 module.exports = {
   isLoggedIn,
   isAdmin,
-  isUser,
-  authMiddleware
+  isUser
 };

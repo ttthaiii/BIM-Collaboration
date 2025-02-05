@@ -13,18 +13,20 @@ const adminRoutes = require('./routes/admin');
 const app = express();
 
 // Session Configuration
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'your_secret_key', // เปลี่ยน secret เป็นค่าสุ่มที่ปลอดภัย
-    resave: false, // ไม่บันทึกเซสชันใหม่หากไม่มีการเปลี่ยนแปลง
-    saveUninitialized: false, // ไม่บันทึกเซสชันที่ยังไม่มีการใช้งาน
-    cookie: {
-      httpOnly: true, // ป้องกันการโจมตี XSS
-      secure: process.env.NODE_ENV === 'production', // ใช้ secure true เมื่ออยู่ใน production
-      maxAge: 30 * 60 * 1000, // อายุเซสชัน 30 นาที (ค่าตัวอย่าง)
-    },
-  })
-);
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your_secret_key',
+  resave: false,
+  saveUninitialized: false,
+  store: new MemoryStore({ 
+    checkPeriod: 86400000 // ตรวจสอบเซสชันทุก 24 ชั่วโมง
+  }),
+  cookie: {
+    secure: false, // set to true in production with HTTPS
+    httpOnly: true,
+    maxAge:  60 * 60 * 1000, // 
+    sameSite: 'lax' // ป้องกันการเข้าถึงข้ามไซต์
+  }
+}));
 
 // Middleware
 app.use(bodyParser.json());
@@ -111,10 +113,17 @@ app.use('/user', userRoutes);
 
 // 404 Error Handler
 app.use((req, res, next) => {
-  res.status(404).render('error', {
-    message: 'Route not found',
-    error: { status: 404 }
-  });
+  if (req.session.user) {
+    if (!req.session.sessionID) {
+      req.session.sessionID = req.sessionID;
+    } else if (req.session.sessionID !== req.sessionID) {
+      req.session.destroy(() => {
+        res.redirect('/login');
+      });
+      return;
+    }
+  }
+  next();
 });
 
 // Error Handler
