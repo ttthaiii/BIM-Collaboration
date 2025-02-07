@@ -1,18 +1,76 @@
 const { google } = require('googleapis');
-const fs = require('fs');
+const fs = require('fs').promises;
+const fsSync = require('fs');
+const crypto = require('crypto');
 
-// ตรวจสอบว่า Environment Variables ถูกตั้งค่าหรือไม่
-if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-    throw new Error('❌ Google API Credentials ไม่ถูกตั้งค่าใน Environment Variables');
-}
+// Set OpenSSL version
+crypto.constants.OPENSSL_VERSION_NUMBER = crypto.constants.OPENSSL_VERSION_NUMBER || 0x1010106f;
 
-// ตั้งค่า Google Auth ด้วย Environment Variables
+// Environment variables validation
+const checkRequiredEnvVars = () => {
+    const required = [
+        'GOOGLE_CLIENT_EMAIL',
+        'GOOGLE_PRIVATE_KEY',
+        'GOOGLE_DRIVE_FOLDER_ID',
+        'GOOGLE_TEAM_DRIVE_ID'
+    ];
+    
+    const missing = required.filter(key => !process.env[key]);
+    
+    if (missing.length > 0) {
+        throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    }
+};
+
+// Private key validation
+const validatePrivateKey = () => {
+    try {
+        const privateKey = process.env.GOOGLE_PRIVATE_KEY;
+        console.log('Private key format check:');
+        console.log('- Starts with BEGIN:', privateKey.includes('-----BEGIN PRIVATE KEY-----'));
+        console.log('- Ends with END:', privateKey.includes('-----END PRIVATE KEY-----'));
+        console.log('- Contains newlines:', privateKey.includes('\\n'));
+        
+        if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || 
+            !privateKey.includes('-----END PRIVATE KEY-----')) {
+            throw new Error('Invalid private key format');
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Private key validation failed:', error);
+        return false;
+    }
+};
+
+// Create Google Drive client
 const createDriveClient = async () => {
     try {
+        // Format private key
+        const formatPrivateKey = (key) => {
+            if (!key) return '';
+            const keyString = key
+                .replace(/\\n/g, '\n')
+                .replace(/"\n/g, '\n')
+                .replace(/\n"/g, '\n')
+                .replace(/^"/, '')
+                .replace(/"$/, '');
+            
+            if (!keyString.includes('-----BEGIN PRIVATE KEY-----')) {
+                return '-----BEGIN PRIVATE KEY-----\n' + keyString;
+            }
+            if (!keyString.includes('-----END PRIVATE KEY-----')) {
+                return keyString + '\n-----END PRIVATE KEY-----';
+            }
+            return keyString;
+        };
+
+        const privateKey = formatPrivateKey(process.env.GOOGLE_PRIVATE_KEY);
+
         const auth = new google.auth.GoogleAuth({
             credentials: {
                 client_email: process.env.GOOGLE_CLIENT_EMAIL,
-                private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'), // แปลง \\n เป็น newline
+                private_key: privateKey
             },
             scopes: [
                 'https://www.googleapis.com/auth/drive',
@@ -21,91 +79,123 @@ const createDriveClient = async () => {
             ],
         });
 
+        console.log('✅ Auth configuration created successfully');
+        
         const client = await auth.getClient();
-        return google.drive({
-            version: 'v3',
-            auth: client,
-        });
+        return google.drive({ version: 'v3', auth: client });
     } catch (error) {
-        console.error('❌ Auth error:', error.message);
+        console.error('❌ Error creating drive client:', {
+            message: error.message,
+            name: error.name,
+            code: error.code,
+            stack: error.stack
+        });
         throw error;
     }
 };
 
-// ฟังก์ชันอัปโหลดไฟล์ไปยัง Google Drive
+// Main service object
 const driveService = {
-    uploadToDrive: async (userId, filePath, fileName) => {
+    uploadToDrive: async (userId, filePath, fileName, mimetype) => {
         try {
-            console.log('🚀 กำลังอัปโหลดไฟล์ไปยัง Google Drive...');
-            const drive = await createDriveClient();
-
-            // ตรวจสอบว่าไฟล์มีอยู่จริงหรือไม่
-            if (!fs.existsSync(filePath)) {
-                throw new Error(`❌ ไม่พบไฟล์: ${filePath}`);
+            // Input validation
+            if (!userId || !filePath || !fileName) {
+                throw new Error('Missing required parameters for upload');
             }
 
-            // ตั้งค่าชื่อไฟล์แบบ UTF-8
+            console.log('🚀 Starting Google Drive upload process...');
+            const drive = await createDriveClient();
+
+            // Verify file exists
+            if (!fsSync.existsSync(filePath)) {
+                throw new Error(`❌ File not found: ${filePath}`);
+            }
+
+            // Prepare UTF-8 filename
             const utf8FileName = Buffer.from(fileName, 'utf8').toString();
 
-            // สร้าง metadata
+            // Prepare metadata
             const fileMetadata = {
                 name: utf8FileName,
-                parents: [process.env.GOOGLE_DRIVE_FOLDER_ID], // ใช้ Folder ID จาก Environment Variables
+                parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
             };
 
-            // สร้าง media object
+            // Prepare media
             const media = {
-                mimeType: 'image/jpeg', // แก้ MIME Type ตามประเภทของไฟล์
-                body: fs.createReadStream(filePath),
+                mimeType: mimetype,
+                body: fsSync.createReadStream(filePath),
             };
 
-            console.log(`📂 อัปโหลดไฟล์: ${utf8FileName} ไปที่โฟลเดอร์ ${process.env.GOOGLE_DRIVE_FOLDER_ID}`);
+            console.log(`📂 Uploading: ${utf8FileName} to folder: ${process.env.GOOGLE_DRIVE_FOLDER_ID}`);
 
-            // อัปโหลดไฟล์ไปยัง Google Drive
+            // Perform upload
             const response = await drive.files.create({
                 requestBody: fileMetadata,
                 media: media,
-                fields: 'id, name, webViewLink',
+                fields: 'id, name, webViewLink, mimeType, size',
                 supportsAllDrives: true,
                 enforceSingleParent: true,
             });
 
-            console.log('✅ อัปโหลดสำเร็จ:', response.data);
-
+            console.log('✅ Upload successful:', response.data);
             return response.data;
+
         } catch (error) {
-            console.error('❌ เกิดข้อผิดพลาดระหว่างอัปโหลด:', error.message);
+            console.error('❌ Upload error:', {
+                userId,
+                fileName,
+                errorMessage: error.message,
+                errorCode: error.code,
+                errorStack: error.stack
+            });
             throw error;
         }
     },
 
-    // ฟังก์ชันตรวจสอบการเข้าถึง Google Drive
     verifyAccess: async () => {
         try {
             const drive = await createDriveClient();
             const teamDrive = await drive.drives.get({
-                driveId: process.env.GOOGLE_TEAM_DRIVE_ID, // ใช้ Team Drive ID จาก Environment Variables
+                driveId: process.env.GOOGLE_TEAM_DRIVE_ID,
                 supportsAllDrives: true,
             });
 
-            console.log('✅ สามารถเข้าถึง Team Drive:', teamDrive.data.name);
+            console.log('✅ Team Drive access verified:', teamDrive.data.name);
             return true;
         } catch (error) {
-            console.error('❌ ไม่สามารถเข้าถึง Team Drive:', error.message);
+            console.error('❌ Team Drive access failed:', error.message);
             return false;
         }
     },
 };
 
-// ตรวจสอบการเข้าถึง Google Drive เมื่อเริ่มต้น
-driveService.verifyAccess()
-    .then(hasAccess => {
-        if (hasAccess) {
-            console.log('✅ Drive service พร้อมใช้งาน');
-        } else {
-            console.error('❌ ไม่สามารถเข้าถึง Google Drive');
+// Service initialization
+async function initializeService() {
+    try {
+        console.log('🔄 Initializing Google Drive service...');
+        checkRequiredEnvVars();
+        const isValidKey = validatePrivateKey();
+        
+        if (!isValidKey) {
+            throw new Error('Private key validation failed');
         }
-    })
-    .catch(console.error);
+
+        const hasAccess = await driveService.verifyAccess();
+        if (!hasAccess) {
+            throw new Error('Failed to verify Google Drive access');
+        }
+
+        console.log('✅ Google Drive service initialized successfully');
+    } catch (error) {
+        console.error('❌ Service initialization failed:', error);
+        throw error;
+    }
+}
+
+// Initialize service
+initializeService().catch(error => {
+    console.error('❌ Fatal: Service initialization failed', error);
+    process.exit(1);
+});
 
 module.exports = driveService;

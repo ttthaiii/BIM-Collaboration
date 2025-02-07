@@ -1,5 +1,5 @@
 const multer = require('multer');
-const fs = require('fs').promises;
+const fs = require('fs').promises;  // เปลี่ยนจาก fs เป็น fs.promises
 const path = require('path');
 const { saveDocument } = require('../config/database');
 const driveService = require('../config/googleDrive');
@@ -12,7 +12,11 @@ exports.uploadFile = async (req, res) => {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        console.log('Received file:', req.file);
+        console.log('Upload process started:', {
+            originalName: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size
+        });
 
         const filePath = req.file.path;
         const originalFileName = req.file.originalname;
@@ -20,17 +24,23 @@ exports.uploadFile = async (req, res) => {
         // ใช้ Buffer.from() เพื่อจัดการชื่อไฟล์
         const utf8FileName = Buffer.from(originalFileName, 'latin1').toString('utf8');
 
-        // เปลี่ยนชื่อไฟล์สำหรับเซิร์ฟเวอร์ (อนุญาตเฉพาะ UTF-8 ที่รองรับ)
+        // เปลี่ยนชื่อไฟล์สำหรับเซิร์ฟเวอร์
         const sanitizedFilePath = path.join(
             path.dirname(filePath),
             Date.now() + '-' + utf8FileName
         );
+        
         await fs.rename(filePath, sanitizedFilePath);
-
         console.log('Sanitized file path:', sanitizedFilePath);
 
-        // อัปโหลดไฟล์ไปยัง Google Drive โดยใช้ชื่อไฟล์ UTF-8
-        const { id: googleFileId, webViewLink: fileUrl } = await driveService.uploadToDrive(req.session.user.id, sanitizedFilePath, utf8FileName);
+        // อัปโหลดไฟล์ไปยัง Google Drive
+        const { id: googleFileId, webViewLink: fileUrl } = await driveService.uploadToDrive(
+            req.session.user.id, 
+            sanitizedFilePath, 
+            utf8FileName,
+            req.file.mimetype
+        );
+
         console.log('Google File ID:', googleFileId);
         console.log('File URL:', fileUrl);
 
@@ -38,7 +48,11 @@ exports.uploadFile = async (req, res) => {
         await saveDocument(req.session.user.id, utf8FileName, fileUrl, googleFileId);
 
         // ลบไฟล์ชั่วคราว
-        await fs.unlink(sanitizedFilePath);
+        try {
+            await fs.unlink(sanitizedFilePath);
+        } catch (unlinkError) {
+            console.error('Error deleting temporary file:', unlinkError);
+        }
 
         res.json({
             success: true,
@@ -48,7 +62,21 @@ exports.uploadFile = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error in upload process:', error);
+        console.error('Upload process error:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
+
+        // ลบไฟล์ชั่วคราวในกรณีที่เกิด error
+        if (req.file?.path) {
+            try {
+                await fs.unlink(req.file.path);
+            } catch (unlinkError) {
+                console.error('Error deleting temporary file:', unlinkError);
+            }
+        }
+
         res.status(500).json({
             success: false,
             error: 'Failed to upload file',
