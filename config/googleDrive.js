@@ -49,6 +49,12 @@ const createDriveClient = async () => {
         // Format private key
         const formatPrivateKey = (key) => {
             if (!key) return '';
+            // แปลงเป็น base64 และถอดรหัสกลับ
+            const decoded = Buffer.from(key, 'base64').toString();
+            if (decoded.includes('PRIVATE KEY')) {
+                return decoded;
+            }
+            // ถ้าไม่ใช่ base64 ใช้วิธีเดิม
             const keyString = key
                 .replace(/\\n/g, '\n')
                 .replace(/"\n/g, '\n')
@@ -66,6 +72,10 @@ const createDriveClient = async () => {
         };
 
         const privateKey = formatPrivateKey(process.env.GOOGLE_PRIVATE_KEY);
+        
+        // เพิ่ม logging เพื่อตรวจสอบ
+        console.log('Private key length:', privateKey.length);
+        console.log('Private key first 50 chars:', privateKey.substring(0, 50));
 
         const auth = new google.auth.GoogleAuth({
             credentials: {
