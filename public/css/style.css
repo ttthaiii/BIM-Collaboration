@@ -81,3 +81,35 @@ button:hover {
       padding: 1.5rem;
   }
 }
+
+.dashboard-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.upload-section {
+  margin: 20px 0;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+#uploadStatus {
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.documents-section {
+  margin-top: 20px;
+}
+
+.documents-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.documents-section li {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}

@@ -29,6 +29,17 @@ CREATE TABLE user_sites (
     FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
 );
 
+-- ตารางเอกสาร
+CREATE TABLE documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_url TEXT DEFAULT NULL, -- file_url อาจเป็น NULL ได้
+    google_file_id VARCHAR(255) NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- เพิ่มข้อมูลในตาราง sites
 INSERT INTO sites (site_name) VALUES
 ('Bann Sansiri Bangna'),
@@ -46,3 +57,7 @@ INSERT INTO user_sites (user_id, site_id) VALUES
 (1, 1), -- thai.l สามารถเข้าถึง Bann Sansiri Bangna
 (2, 2), -- krissanapol สามารถเข้าถึง DH2-พรานนก
 (2, 3); -- krissanapol สามารถเข้าถึง DH2-สาย1
+
+-- เพิ่มข้อมูลตัวอย่าง
+INSERT INTO documents (user_id, file_name, file_url, google_file_id) 
+VALUES (1, 'example.pdf', 'https://drive.google.com/file/d/123456abcXYZ', '123456abcXYZ');

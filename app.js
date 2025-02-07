@@ -29,8 +29,8 @@ app.use(session({
     checkPeriod: 86400000 // 24 hours
   }),
   name: 'sessionId',
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true,
   proxy: true, // เพิ่มการรองรับ proxy
   cookie: {
     httpOnly: true,
@@ -74,13 +74,14 @@ app.post('/login', async (req, res) => {
     if (rows.length > 0 && password === rows[0].password) {
       const user = rows[0];
       
+      // บันทึกข้อมูลใน session
       req.session.user = {
         id: user.id,
         username: user.username,
         role: user.role
       };
       
-      // Save session explicitly
+      // บันทึก session แบบ explicit
       req.session.save((err) => {
         if (err) {
           console.error('Session save error:', err);
@@ -88,18 +89,19 @@ app.post('/login', async (req, res) => {
         }
         
         console.log('Login successful, session:', req.session);
-        const redirectUrl = user.role === 'admin' ? '/admin' : '/user';
-        res.json({ success: true, redirectUrl });
+        res.json({ 
+          success: true, 
+          redirectUrl: user.role === 'admin' ? '/admin' : '/user/dashboard'
+        });
       });
     } else {
-      res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 });
-
 // Logout route
 app.get('/logout', (req, res) => {
   if (req.session) {

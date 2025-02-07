@@ -55,26 +55,27 @@
                 e.preventDefault();
                 const formData = new FormData(loginForm);
                 const body = Object.fromEntries(formData.entries());
-    
+
                 try {
                     const response = await fetch('/login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(body)
                     });
-    
+
                     const result = await response.json();
                     if (result.success) {
-                        window.location.href = '/admin';
+                        // เปลี่ยนเป็นใช้ window.location.href
+                        window.location.href = result.redirectUrl;
                     } else {
-                        alert('Invalid username or password');
+                        alert(result.error || 'Invalid username or password');
                     }
                 } catch (err) {
                     console.error('Error:', err);
                     alert('An error occurred during login');
                 }
             });
-        });
+            });
         </script>
 </body>
 </html>

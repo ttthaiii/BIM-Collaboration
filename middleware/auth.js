@@ -22,7 +22,7 @@ const isLoggedIn = (req, res, next) => {
 
   // อัพเดทเวลาเข้าใช้งานล่าสุด
   req.session.lastAccess = currentTime;
-
+/*
   // ตรวจสอบการเปิดแท็บใหม่เฉพาะเมื่อมีการเปลี่ยนหน้า
   if (req.get('sec-fetch-dest') === 'document' && req.method === 'GET') {
     const referrer = req.get('referer') || '';
@@ -37,49 +37,31 @@ const isLoggedIn = (req, res, next) => {
       });
     }
   }
-
+*/
   next();
 };
+
 
 // ตรวจสอบสิทธิ์ Admin
 const isAdmin = (req, res, next) => {
-  if (!req.session?.user?.role) {
-    console.log('No user role found');
-    return res.redirect('/login');
+  if (req.session.user?.role === 'admin') {
+      return next(); // อนุญาตให้เข้าถึง
   }
-
-  if (req.session.user.role !== 'admin') {
-    console.warn('Access denied: Admin privileges required');
-    return res.status(403).render('error', {
-      message: 'Access Denied',
-      error: { 
-        status: 403,
-        stack: 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้' 
-      }
-    });
-  }
-
-  next();
+  res.redirect('/admin'); // Redirect ไปยังหน้า Admin Menu
 };
+
 
 // ตรวจสอบสิทธิ์ User
 const isUser = (req, res, next) => {
-  if (!req.session?.user?.role) {
-    console.log('No user role found');
-    return res.redirect('/login');
+  if (!req.session.user) {
+      return res.redirect('/login');
   }
-
   if (req.session.user.role !== 'user') {
-    console.warn('Access denied: User privileges required');
-    return res.status(403).render('error', {
-      message: 'Access Denied',
-      error: { 
-        status: 403,
-        stack: 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้' 
-      }
-    });
+      return res.status(403).render('error', {
+          message: 'Access denied',
+          error: { status: 403 }
+      });
   }
-
   next();
 };
 

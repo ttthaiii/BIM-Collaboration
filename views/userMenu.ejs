@@ -267,43 +267,25 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <button onclick="location.href='/logout'" class="logout-btn">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </button>
-
-        <div class="welcome-section">
-            <h1>Welcome, <%= username %></h1>
-            <p>Job Position: <%= job_position %></p>
-        </div>
-
-        <div class="accessible-sites">
-            <h2>Your Accessible Sites</h2>
-            <ul class="site-list">
-                <% sites.forEach(site => { %>
-                    <li class="site-item">
-                        <i class="fas fa-building"></i>
-                        <span><%= site.site_name %></span>
-                        <% if (site.report_link) { %>
-                            <!-- ปุ่มดูรายงาน -->
-                            <a href="<%= site.report_link %>" target="_blank" class="btn-report">
-                                <i class="fas fa-chart-bar"></i> ดูรายงาน
-                            </a>
-                        <% } else { %>
-                            <!-- ข้อความแสดงว่าไม่มีรายงาน -->
-                            <span class="no-report">ไม่มีรายงาน</span>
-                        <% } %>
-                    </li>
-                <% }) %>
-            </ul>
-        </div>
-
-        <div class="actions-section">
-            <a href="/submit-document" class="submit-btn">
-                <i class="fas fa-file-upload"></i>
-                Submit Document
-            </a>
-        </div>
+    <h2>Upload Document</h2>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="document" required>
+        <button type="submit">Upload</button>
+    </form>
+    
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const response = await fetch('/user/upload-document', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            alert(result.message);
+        });
+    </script>
+   
     </div>
 </body>
 </html>

@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { poolPromise } = require("../config/database");
+const { pool } = require("../config/database"); // แก้จาก poolPromise เป็น pool
 
 // แสดงหน้า Login
 exports.getLoginPage = (req, res) => {
@@ -80,4 +80,23 @@ exports.getUserMenu = (req, res) => {
     title: "User Menu",
     username: req.session.username || "User", // แสดงชื่อผู้ใช้จาก session
   });
+};
+
+exports.getUserDocuments = async (req, res) => {
+  try {
+      const [documents] = await pool.query(
+          "SELECT * FROM documents WHERE user_id = ?", 
+          [req.session.user.id]
+      );
+      res.render('userDashboard', { 
+          documents,
+          user: req.session.user 
+      });
+  } catch (err) {
+      console.error("Error loading user documents:", err);
+      res.status(500).render('error', { 
+          message: "Failed to load user documents", 
+          error: process.env.NODE_ENV === 'development' ? err : {} 
+      });
+  }
 };

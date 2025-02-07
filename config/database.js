@@ -34,7 +34,17 @@ const testConnection = async () => {
     }
 };
 
+async function saveDocument(userId, fileName, fileUrl, fileId) {
+    const query = `
+        INSERT INTO documents (user_id, file_name, file_url, google_file_id)
+        VALUES (?, ?, ?, ?)
+    `;
+    console.log('Saving document with data:', { userId, fileName, fileUrl, googleFileId: fileId });
+    await pool.execute(query, [userId, fileName, fileUrl, fileId]);
+}
+
+
 // Run initial connection test
 testConnection();
 
-module.exports = { pool, testConnection };
+module.exports = { pool, testConnection, saveDocument };

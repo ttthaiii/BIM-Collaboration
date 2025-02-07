@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <h1>Welcome <%= user.username %></h1>
+        
+        <!-- เหลือแค่ส่วนเดียว -->
+        <div class="upload-section">
+            <h2>Upload New Document</h2>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" name="document" required>
+                <button type="submit">Upload</button>
+            </form>
+            <div id="uploadStatus" style="margin-top: 10px;"></div>
+        </div>
+        
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const statusDiv = document.getElementById('uploadStatus');
+            
+            try {
+                statusDiv.textContent = 'Uploading...';
+                const response = await fetch('/user/upload-document', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    statusDiv.textContent = result.message;
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    statusDiv.textContent = `Upload failed: ${result.error}${result.details ? ` (${result.details})` : ''}`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.textContent = `Upload failed: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>

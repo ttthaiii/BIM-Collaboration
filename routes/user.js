@@ -1,56 +1,74 @@
 const express = require('express');
 const router = express.Router();
-const { poolPromise } = require('../config/database');
+const auth = require('../middleware/auth');
+const uploadController = require('../controllers/uploadController');
+const userController = require('../controllers/userController');
+const multer = require('multer');
+const { pool } = require('../config/database'); // เปลี่ยนจาก poolPromise เป็น pool
 
-// Route แสดงหน้า Login
-router.get('/login', (req, res) => {
-  res.render('login', { errorMessage: null, username: null });
+// ตั้งค่า multer
+const upload = multer({ 
+  dest: 'uploads/'
 });
 
-// Route จัดการ Login
+// ลบ isLoggedIn และ isUser ที่ import แยก และใช้ auth แทน
+router.use(auth.isLoggedIn);
+router.use(auth.isUser);
+
+// Route แสดงหน้า dashboard และ upload
+router.get('/dashboard', userController.getUserDocuments);
+router.post('/upload-document', upload.single('document'), uploadController.uploadFile);
+
+// Route แสดงหน้า Login - ย้ายไปไว้ก่อน middleware
+router.get('/login', (req, res) => {
+  res.render('login', { error: null });
+});
+
+// Route จัดการ Login - ย้ายไปไว้ก่อน middleware
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // ค้นหาผู้ใช้จากฐานข้อมูล
-    const [users] = await poolPromise.query(
-      'SELECT * FROM users WHERE username = ?',
+    const [users] = await pool.execute(
+      'SELECT * FROM users WHERE username = ? LIMIT 1',
       [username]
     );
 
-    if (users.length === 0) {
-      return res.render('login', {
-        errorMessage: 'Invalid username or password.',
-        username,
+    if (users.length === 0 || password !== users[0].password) {
+      return res.json({
+        success: false,
+        error: 'Invalid username or password'
       });
     }
 
     const user = users[0];
 
-    // เปรียบเทียบรหัสผ่านโดยตรง
-    if (password !== user.password) {
-      return res.render('login', {
-        errorMessage: 'Invalid username or password.',
-        username,
-      });
-    }
-
     // เก็บข้อมูลใน session
-    req.session.userId = user.id;
-    req.session.username = user.username;
-    req.session.role = user.role;
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      role: user.role
+    };
 
-    // เปลี่ยนเส้นทางตามบทบาทผู้ใช้
-    if (user.role === 'admin') {
-      return res.redirect('/admin');
-    } else {
-      return res.redirect('/dashboard');
-    }
+    // บันทึก session
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    // ส่ง response กลับไปยัง client
+    res.json({
+      success: true,
+      redirectUrl: user.role === 'admin' ? '/admin' : '/user/dashboard'
+    });
+
   } catch (err) {
     console.error('Login error:', err);
-    return res.render('login', {
-      errorMessage: 'An error occurred. Please try again later.',
-      username,
+    res.status(500).json({
+      success: false,
+      error: 'Server error occurred'
     });
   }
 });
