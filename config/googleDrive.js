@@ -1,20 +1,24 @@
 const { google } = require('googleapis');
-const path = require('path');
 const fs = require('fs');
-const { saveDocument } = require('./database'); // Import ฟังก์ชัน saveDocument
 
-const FOLDER_ID = '11eB3PBJnJBhtcpghUwSo73lJh_CEGDX7';
-const TEAM_DRIVE_ID = '0AAtwqQRo9hyoUk9PVA';
+// ตรวจสอบว่า Environment Variables ถูกตั้งค่าหรือไม่
+if (!process.env.GOOGLE_CLIENT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+    throw new Error('❌ Google API Credentials ไม่ถูกตั้งค่าใน Environment Variables');
+}
 
+// ตั้งค่า Google Auth ด้วย Environment Variables
 const createDriveClient = async () => {
     try {
         const auth = new google.auth.GoogleAuth({
-            keyFile: path.join(__dirname, '../config/credentials.json'),
+            credentials: {
+                client_email: process.env.GOOGLE_CLIENT_EMAIL,
+                private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'), // แปลง \\n เป็น newline
+            },
             scopes: [
                 'https://www.googleapis.com/auth/drive',
                 'https://www.googleapis.com/auth/drive.file',
-                'https://www.googleapis.com/auth/drive.metadata'
-            ]
+                'https://www.googleapis.com/auth/drive.metadata',
+            ],
         });
 
         const client = await auth.getClient();
@@ -23,41 +27,41 @@ const createDriveClient = async () => {
             auth: client,
         });
     } catch (error) {
-        console.error('Auth error:', error);
+        console.error('❌ Auth error:', error.message);
         throw error;
     }
 };
 
+// ฟังก์ชันอัปโหลดไฟล์ไปยัง Google Drive
 const driveService = {
     uploadToDrive: async (userId, filePath, fileName) => {
         try {
-            console.log('Starting upload to Team Drive...');
+            console.log('🚀 กำลังอัปโหลดไฟล์ไปยัง Google Drive...');
             const drive = await createDriveClient();
 
-            // ตรวจสอบไฟล์
+            // ตรวจสอบว่าไฟล์มีอยู่จริงหรือไม่
             if (!fs.existsSync(filePath)) {
-                throw new Error(`File not found: ${filePath}`);
+                throw new Error(`❌ ไม่พบไฟล์: ${filePath}`);
             }
 
-            // ใช้ชื่อไฟล์ UTF-8
+            // ตั้งค่าชื่อไฟล์แบบ UTF-8
             const utf8FileName = Buffer.from(fileName, 'utf8').toString();
 
-            // สร้าง metadata โดยใช้ชื่อไฟล์ UTF-8
+            // สร้าง metadata
             const fileMetadata = {
-                name: utf8FileName, // ชื่อไฟล์ UTF-8
-                parents: [FOLDER_ID],
-                driveId: TEAM_DRIVE_ID
+                name: utf8FileName,
+                parents: [process.env.GOOGLE_DRIVE_FOLDER_ID], // ใช้ Folder ID จาก Environment Variables
             };
 
             // สร้าง media object
             const media = {
-                mimeType: 'image/jpeg', // เปลี่ยน MIME type หากไม่ใช่ JPEG
-                body: fs.createReadStream(filePath)
+                mimeType: 'image/jpeg', // แก้ MIME Type ตามประเภทของไฟล์
+                body: fs.createReadStream(filePath),
             };
 
-            console.log('Uploading with metadata:', { fileName: utf8FileName, folderId: FOLDER_ID, teamDriveId: TEAM_DRIVE_ID });
+            console.log(`📂 อัปโหลดไฟล์: ${utf8FileName} ไปที่โฟลเดอร์ ${process.env.GOOGLE_DRIVE_FOLDER_ID}`);
 
-            // อัพโหลดไฟล์
+            // อัปโหลดไฟล์ไปยัง Google Drive
             const response = await drive.files.create({
                 requestBody: fileMetadata,
                 media: media,
@@ -66,50 +70,40 @@ const driveService = {
                 enforceSingleParent: true,
             });
 
-            const { id: googleFileId, webViewLink: fileUrl } = response.data;
-            console.log('Upload successful:', response.data);
+            console.log('✅ อัปโหลดสำเร็จ:', response.data);
 
             return response.data;
         } catch (error) {
-            console.error('Upload error details:', {
-                message: error.message,
-                code: error.code,
-                errors: error.errors,
-                response: error.response?.data
-            });
+            console.error('❌ เกิดข้อผิดพลาดระหว่างอัปโหลด:', error.message);
             throw error;
         }
     },
 
+    // ฟังก์ชันตรวจสอบการเข้าถึง Google Drive
     verifyAccess: async () => {
         try {
             const drive = await createDriveClient();
             const teamDrive = await drive.drives.get({
-                driveId: TEAM_DRIVE_ID,
-                supportsAllDrives: true
-            });
-            console.log('Team Drive access verified:', teamDrive.data.name);
-            const folder = await drive.files.get({
-                fileId: FOLDER_ID,
+                driveId: process.env.GOOGLE_TEAM_DRIVE_ID, // ใช้ Team Drive ID จาก Environment Variables
                 supportsAllDrives: true,
-                fields: '*'
             });
-            console.log('Folder access verified:', folder.data.name);
+
+            console.log('✅ สามารถเข้าถึง Team Drive:', teamDrive.data.name);
             return true;
         } catch (error) {
-            console.error('Access verification failed:', error);
+            console.error('❌ ไม่สามารถเข้าถึง Team Drive:', error.message);
             return false;
         }
-    }
+    },
 };
 
-// เรียกใช้ verifyAccess เมื่อเริ่มต้น
+// ตรวจสอบการเข้าถึง Google Drive เมื่อเริ่มต้น
 driveService.verifyAccess()
     .then(hasAccess => {
         if (hasAccess) {
-            console.log('Drive service initialized successfully');
+            console.log('✅ Drive service พร้อมใช้งาน');
         } else {
-            console.error('Failed to verify drive access');
+            console.error('❌ ไม่สามารถเข้าถึง Google Drive');
         }
     })
     .catch(console.error);
