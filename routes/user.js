@@ -24,6 +24,18 @@ router.get('/login', (req, res) => {
   res.render('login', { error: null });
 });
 
+router.get('/rfa', auth.isLoggedIn, auth.isUser, (req, res) => {
+  res.render('rfa', { user: req.session.user });
+});
+
+router.get('/rfi', auth.isLoggedIn, auth.isUser, (req, res) => {
+  res.render('rfi', { user: req.session.user });
+});
+
+router.get('/work-request', auth.isLoggedIn, auth.isUser, (req, res) => {
+  res.render('workRequest', { user: req.session.user });
+});
+
 // Route จัดการ Login - ย้ายไปไว้ก่อน middleware
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;

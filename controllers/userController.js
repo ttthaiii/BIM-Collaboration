@@ -84,18 +84,37 @@ exports.getUserMenu = (req, res) => {
 
 exports.getUserDocuments = async (req, res) => {
   try {
+      // ดึงข้อมูลผู้ใช้และ site ที่เข้าถึงได้
+      const [sites] = await pool.query(`
+          SELECT s.site_name 
+          FROM sites s
+          JOIN user_sites us ON s.id = us.site_id
+          WHERE us.user_id = ?
+      `, [req.session.user.id]);
+
+      // ดึงข้อมูล job position ของผู้ใช้
+      const [userInfo] = await pool.query(`
+          SELECT job_position 
+          FROM users 
+          WHERE id = ?
+      `, [req.session.user.id]);
+
+      // ดึงข้อมูล documents
       const [documents] = await pool.query(
           "SELECT * FROM documents WHERE user_id = ?", 
           [req.session.user.id]
       );
+
       res.render('userDashboard', { 
           documents,
-          user: req.session.user 
+          user: req.session.user,
+          sites: sites,
+          jobPosition: userInfo[0].job_position
       });
   } catch (err) {
-      console.error("Error loading user documents:", err);
+      console.error("Error loading user data:", err);
       res.status(500).render('error', { 
-          message: "Failed to load user documents", 
+          message: "Failed to load user data", 
           error: process.env.NODE_ENV === 'development' ? err : {} 
       });
   }

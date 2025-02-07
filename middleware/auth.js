@@ -22,7 +22,7 @@ const isLoggedIn = (req, res, next) => {
 
   // อัพเดทเวลาเข้าใช้งานล่าสุด
   req.session.lastAccess = currentTime;
-/*
+
   // ตรวจสอบการเปิดแท็บใหม่เฉพาะเมื่อมีการเปลี่ยนหน้า
   if (req.get('sec-fetch-dest') === 'document' && req.method === 'GET') {
     const referrer = req.get('referer') || '';
@@ -37,7 +37,7 @@ const isLoggedIn = (req, res, next) => {
       });
     }
   }
-*/
+
   next();
 };
 

@@ -4,50 +4,146 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Dashboard</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(45deg, #FF5722 50%, #796B63 50%);
+        }
+
+        .header {
+            background: #1a237e;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .user-info {
+            margin-bottom: 15px;
+        }
+
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .dashboard-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 5px;
+        }
+
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.3s;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: #4a148c;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #ff5722;
+            color: white;
+        }
+
+        .dropdown-content a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+        }
+
+        .dropdown-content a:hover {
+            background-color: #f1f1f1;
+        }
+
+        .report-section {
+            margin-top: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 </head>
 <body>
-    <div class="dashboard-container">
-        <h1>Welcome <%= user.username %></h1>
-        
-        <!-- เหลือแค่ส่วนเดียว -->
-        <div class="upload-section">
-            <h2>Upload New Document</h2>
-            <form id="uploadForm" enctype="multipart/form-data">
-                <input type="file" name="document" required>
-                <button type="submit">Upload</button>
-            </form>
-            <div id="uploadStatus" style="margin-top: 10px;"></div>
+    <div class="header">
+        <div class="user-info">
+            <h2>Welcome <%= user.username %></h2>
+            <p>ตำแหน่งงาน: <%= jobPosition %></p>
+            <p>โครงการ: <%= sites[0].site_name %></p>
         </div>
-        
     </div>
 
-    <script>
-        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            const formData = new FormData(form);
-            const statusDiv = document.getElementById('uploadStatus');
+    <div class="dashboard-container">
+        <div class="dashboard-grid">
+            <div class="dashboard-card">
+                <div class="dropdown">
+                    <button class="btn btn-primary">Document Request</button>
+                    <div class="dropdown-content">
+                        <a href="/user/rfa" target="_blank">RFA</a>
+                        <a href="/user/rfi" target="_blank">RFI</a>
+                    </div>
+                </div>
+            </div>
             
-            try {
-                statusDiv.textContent = 'Uploading...';
-                const response = await fetch('/user/upload-document', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    statusDiv.textContent = result.message;
-                    setTimeout(() => location.reload(), 2000);
-                } else {
-                    statusDiv.textContent = `Upload failed: ${result.error}${result.details ? ` (${result.details})` : ''}`;
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                statusDiv.textContent = `Upload failed: ${error.message}`;
-            }
-        });
-    </script>
+            <div class="dashboard-card">
+                <a href="/user/work-request" target="_blank" class="btn btn-secondary">
+                    Work Request
+                </a>
+            </div>
+        </div>
+
+        <div class="report-section">
+            <h2>รายงาน</h2>
+            <!-- ส่วนแสดงรายงานในอนาคต -->
+        </div>
+    </div>
 </body>
 </html>

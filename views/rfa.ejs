@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFA Upload</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* CSS จาก userMenu.ejs ที่จำเป็น */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(45deg, #FF5722 50%, #796B63 50%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .upload-section {
+            margin-top: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        #uploadStatus {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RFA Document Upload</h1>
+        <div class="upload-section">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="document">Select Document:</label>
+                    <input type="file" name="document" required>
+                </div>
+                <button type="submit">Upload RFA</button>
+            </form>
+            <div id="uploadStatus"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const statusDiv = document.getElementById('uploadStatus');
+            
+            try {
+                statusDiv.textContent = 'Uploading...';
+                const response = await fetch('/user/upload-document', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    statusDiv.textContent = result.message;
+                    statusDiv.style.backgroundColor = '#dff0d8';
+                    statusDiv.style.color = '#3c763d';
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    statusDiv.textContent = `Upload failed: ${result.error}`;
+                    statusDiv.style.backgroundColor = '#f2dede';
+                    statusDiv.style.color = '#a94442';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.textContent = `Upload failed: ${error.message}`;
+                statusDiv.style.backgroundColor = '#f2dede';
+                statusDiv.style.color = '#a94442';
+            }
+        });
+    </script>
+</body>
+</html>
