@@ -4,85 +4,113 @@ const auth = require('../middleware/auth');
 const uploadController = require('../controllers/uploadController');
 const userController = require('../controllers/userController');
 const multer = require('multer');
-const { pool } = require('../config/database'); // เปลี่ยนจาก poolPromise เป็น pool
+const { pool } = require('../config/database');
+const rfaController = require('../controllers/rfaController');
+
+// Middleware ตรวจสอบตำแหน่งงาน
+const checkJobPosition = async (req, res, next) => {
+    if (!req.session.user?.jobPosition) {
+        try {
+            const [userData] = await pool.query(
+                'SELECT job_position FROM users WHERE id = ?',
+                [req.session.user.id]
+            );
+            
+            if (userData.length > 0 && userData[0].job_position) {
+                req.session.user.jobPosition = userData[0].job_position;
+            } else {
+                throw new Error('Job position not found');
+            }
+            next();
+        } catch (error) {
+            console.error('Error checking job position:', error);
+            res.status(500).render('error', { 
+                error: 'Unable to verify user position' 
+            });
+        }
+    } else {
+        next();
+    }
+};
 
 // ตั้งค่า multer
 const upload = multer({ 
-  dest: 'uploads/'
+    dest: 'uploads/'
 });
 
-// ลบ isLoggedIn และ isUser ที่ import แยก และใช้ auth แทน
-router.use(auth.isLoggedIn);
-router.use(auth.isUser);
-
-// Route แสดงหน้า dashboard และ upload
-router.get('/dashboard', userController.getUserDocuments);
-router.post('/upload-document', upload.single('document'), uploadController.uploadFile);
-
-// Route แสดงหน้า Login - ย้ายไปไว้ก่อน middleware
+// Authentication routes
 router.get('/login', (req, res) => {
-  res.render('login', { error: null });
+    res.render('login', { error: null });
 });
 
-router.get('/rfa', auth.isLoggedIn, auth.isUser, (req, res) => {
-  res.render('rfa', { user: req.session.user });
-});
-
-router.get('/rfi', auth.isLoggedIn, auth.isUser, (req, res) => {
-  res.render('rfi', { user: req.session.user });
-});
-
-router.get('/work-request', auth.isLoggedIn, auth.isUser, (req, res) => {
-  res.render('workRequest', { user: req.session.user });
-});
-
-// Route จัดการ Login - ย้ายไปไว้ก่อน middleware
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+    const { username, password } = req.body;
 
-  try {
-    const [users] = await pool.execute(
-      'SELECT * FROM users WHERE username = ? LIMIT 1',
-      [username]
-    );
+    try {
+        const [users] = await pool.execute(
+            'SELECT * FROM users WHERE username = ? LIMIT 1',
+            [username]
+        );
 
-    if (users.length === 0 || password !== users[0].password) {
-      return res.json({
-        success: false,
-        error: 'Invalid username or password'
-      });
+        if (users.length === 0 || password !== users[0].password) {
+            return res.json({
+                success: false,
+                error: 'Invalid username or password'
+            });
+        }
+
+        const user = users[0];
+
+        req.session.user = {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            jobPosition: user.job_position
+        };
+
+        await new Promise((resolve, reject) => {
+            req.session.save((err) => {
+                if (err) reject(err);
+                else resolve();
+            });
+        });
+
+        res.json({
+            success: true,
+            redirectUrl: user.role === 'admin' ? '/admin' : '/user/dashboard'
+        });
+
+    } catch (err) {
+        console.error('Login error:', err);
+        res.status(500).json({
+            success: false,
+            error: 'Server error occurred'
+        });
     }
+});
 
-    const user = users[0];
+// Dashboard routes
+router.get('/dashboard', auth.isLoggedIn, auth.isUser, checkJobPosition, userController.getUserDocuments);
+router.post('/upload-document', auth.isLoggedIn, auth.isUser, upload.single('document'), uploadController.uploadFile);
 
-    // เก็บข้อมูลใน session
-    req.session.user = {
-      id: user.id,
-      username: user.username,
-      role: user.role
-    };
+// RFA routes
+router.get('/rfa', auth.isLoggedIn, auth.isUser, (req, res) => {
+    res.render('rfa', { user: req.session.user });
+});
 
-    // บันทึก session
-    await new Promise((resolve, reject) => {
-      req.session.save((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+router.get('/rfa/user-sites', auth.isLoggedIn, auth.isUser, rfaController.getUserSites);
+router.get('/rfa/categories/:siteId', auth.isLoggedIn, auth.isUser, rfaController.getCategories);
+router.get('/rfa/check-document', auth.isLoggedIn, auth.isUser, rfaController.checkExistingDocument);
+router.post('/rfa/upload', auth.isLoggedIn, auth.isUser, upload.single('document'), rfaController.uploadRFADocument);
 
-    // ส่ง response กลับไปยัง client
-    res.json({
-      success: true,
-      redirectUrl: user.role === 'admin' ? '/admin' : '/user/dashboard'
-    });
+// RFI route
+router.get('/rfi', auth.isLoggedIn, auth.isUser, (req, res) => {
+    res.render('rfi', { user: req.session.user });
+});
 
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Server error occurred'
-    });
-  }
+// Work Request route
+router.get('/work-request', auth.isLoggedIn, auth.isUser, (req, res) => {
+    res.render('workRequest', { user: req.session.user });
 });
 
 module.exports = router;

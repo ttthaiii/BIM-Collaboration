@@ -6,12 +6,15 @@ const MemoryStore = require('memorystore')(session);
 const path = require('path');
 const bodyParser = require('body-parser');
 const { pool } = require('./config/database');
+const driveService = require('./config/googleDrive');
+
+// สร้าง express app และ router
+const app = express();
+const router = express.Router(); // เพิ่มบรรทัดนี้
 
 // Import routes
 const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
-
-const app = express();
 
 // Trust proxy (จำเป็นสำหรับ HTTPS บน Railway)
 app.set('trust proxy', 1);
@@ -31,10 +34,10 @@ app.use(session({
   name: 'sessionId',
   resave: true,
   saveUninitialized: true,
-  proxy: true, // เพิ่มการรองรับ proxy
+  proxy: true,
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // ใช้ HTTPS ใน production
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
@@ -45,7 +48,7 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // Routes
-app.get('/', (req, res) => {
+router.get('/', (req, res) => {
   if (req.session.user) {
     res.redirect(req.session.user.role === 'admin' ? '/admin' : '/user');
   } else {
@@ -53,7 +56,7 @@ app.get('/', (req, res) => {
   }
 });
 
-app.get('/login', (req, res) => {
+router.get('/login', (req, res) => {
   if (req.session.user) {
     res.redirect(req.session.user.role === 'admin' ? '/admin' : '/user');
   } else {
@@ -62,48 +65,54 @@ app.get('/login', (req, res) => {
 });
 
 // Login route
-app.post('/login', async (req, res) => {
+router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    const [rows] = await pool.execute(
+    const [users] = await pool.execute(
       'SELECT * FROM users WHERE username = ? LIMIT 1',
       [username]
     );
 
-    if (rows.length > 0 && password === rows[0].password) {
-      const user = rows[0];
-      
-      // บันทึกข้อมูลใน session
-      req.session.user = {
-        id: user.id,
-        username: user.username,
-        role: user.role
-      };
-      
-      // บันทึก session แบบ explicit
-      req.session.save((err) => {
-        if (err) {
-          console.error('Session save error:', err);
-          return res.status(500).json({ error: 'Session error' });
-        }
-        
-        console.log('Login successful, session:', req.session);
-        res.json({ 
-          success: true, 
-          redirectUrl: user.role === 'admin' ? '/admin' : '/user/dashboard'
-        });
+    if (users.length === 0 || password !== users[0].password) {
+      return res.json({
+        success: false,
+        error: 'Invalid username or password'
       });
-    } else {
-      res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
+
+    const user = users[0];
+    
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      jobPosition: user.job_position
+    };
+    
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    
+    res.json({ 
+      success: true, 
+      redirectUrl: user.role === 'admin' ? '/admin' : '/user/dashboard'
+    });
+
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ success: false, error: 'Server error' });
+    res.status(500).json({
+      success: false,
+      error: 'Server error occurred'
+    });
   }
 });
+
 // Logout route
-app.get('/logout', (req, res) => {
+router.get('/logout', (req, res) => {
   if (req.session) {
     req.session.destroy((err) => {
       if (err) console.error('Logout error:', err);
@@ -114,6 +123,9 @@ app.get('/logout', (req, res) => {
     res.redirect('/login');
   }
 });
+
+// ใช้ router
+app.use('/', router);
 
 // Mount routes
 app.use('/admin', adminRoutes);
@@ -128,10 +140,51 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+async function initializeServices() {
+  try {
+      // ทดสอบ database connection
+      await pool.getConnection().then(conn => {
+          console.log('✅ Database connected');
+          conn.release();
+      });
 
-module.exports = app;
+      // initialize Google Drive service
+      await driveService.initialize();
+      
+      return true;
+  } catch (error) {
+      console.error('❌ Failed to initialize services:', error);
+      return false;
+  }
+}
+
+// แยกการ start server ออกมา
+function startServer() {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+      console.log(`✅ Server running on http://localhost:${PORT}`);
+  }).on('error', (error) => {
+      console.error('❌ Failed to start server:', error);
+      process.exit(1);
+  });
+}
+
+// Main initialization function
+async function initializeApp() {
+  try {
+      // Initialize services first
+      const servicesInitialized = await initializeServices();
+      if (!servicesInitialized) {
+          throw new Error('Failed to initialize services');
+      }
+
+      // Start server after services are ready
+      startServer();
+  } catch (error) {
+      console.error('❌ Application initialization failed:', error);
+      process.exit(1);
+  }
+}
+
+// Start the application
+initializeApp();

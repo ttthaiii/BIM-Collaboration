@@ -14,17 +14,15 @@ exports.handleLogin = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // ค้นหาข้อมูลผู้ใช้จากฐานข้อมูล
-    const [users] = await poolPromise.query(
+    const [users] = await pool.query(
       "SELECT * FROM users WHERE username = ?",
       [username]
     );
 
-    // ถ้าไม่พบผู้ใช้ ให้ส่งกลับพร้อมข้อความผิดพลาด
     if (users.length === 0) {
       return res.render("login", {
         title: "Login Page",
-        errorMessage: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", // กรณีไม่พบผู้ใช้
+        errorMessage: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง",
       });
     }
 
@@ -35,23 +33,16 @@ exports.handleLogin = async (req, res) => {
     if (!isPasswordValid) {
       return res.render("login", {
         title: "Login Page",
-        errorMessage: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", // กรณีรหัสผ่านผิด
+        errorMessage: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง",
       });
     }
 
-    // บันทึกข้อมูลผู้ใช้ในเซสชัน
     req.session.userId = user.id;
     req.session.username = user.username;
     req.session.role = user.role;
 
-    console.log("Session หลังการล็อกอิน:", req.session);
+    res.redirect(user.role === "admin" ? "/admin" : "/user/dashboard");
 
-    // ตรวจสอบ role และเปลี่ยนเส้นทาง
-    if (user.role === "admin") {
-      return res.redirect("/admin");
-    } else {
-      return res.redirect("/user/menu");
-    }
   } catch (err) {
     console.error("เกิดข้อผิดพลาดระหว่างการล็อกอิน:", err);
     return res.status(500).send("เกิดข้อผิดพลาดในระบบ");
@@ -84,38 +75,40 @@ exports.getUserMenu = (req, res) => {
 
 exports.getUserDocuments = async (req, res) => {
   try {
-      // ดึงข้อมูลผู้ใช้และ site ที่เข้าถึงได้
+      // ดึงข้อมูลผู้ใช้พร้อมตำแหน่งงาน
+      const [userData] = await pool.query(`
+          SELECT u.*, s.site_name 
+          FROM users u
+          JOIN user_sites us ON u.id = us.user_id
+          JOIN sites s ON us.site_id = s.id
+          WHERE u.id = ?
+          LIMIT 1
+      `, [req.session.user.id]);
+
+      // ดึงข้อมูล sites ที่ผู้ใช้มีสิทธิ์เข้าถึง
       const [sites] = await pool.query(`
-          SELECT s.site_name 
+          SELECT s.* 
           FROM sites s
           JOIN user_sites us ON s.id = us.site_id
           WHERE us.user_id = ?
       `, [req.session.user.id]);
 
-      // ดึงข้อมูล job position ของผู้ใช้
-      const [userInfo] = await pool.query(`
-          SELECT job_position 
-          FROM users 
-          WHERE id = ?
-      `, [req.session.user.id]);
+      if (!userData.length) {
+          throw new Error('User not found');
+      }
 
-      // ดึงข้อมูล documents
-      const [documents] = await pool.query(
-          "SELECT * FROM documents WHERE user_id = ?", 
-          [req.session.user.id]
-      );
-
-      res.render('userDashboard', { 
-          documents,
-          user: req.session.user,
-          sites: sites,
-          jobPosition: userInfo[0].job_position
+      res.render('userDashboard', {
+          user: {
+              ...req.session.user,
+              jobPosition: userData[0].job_position
+          },
+          sites: sites
       });
-  } catch (err) {
-      console.error("Error loading user data:", err);
+
+  } catch (error) {
+      console.error('Error in getUserDocuments:', error);
       res.status(500).render('error', { 
-          message: "Failed to load user data", 
-          error: process.env.NODE_ENV === 'development' ? err : {} 
+          error: 'Failed to load dashboard: ' + error.message 
       });
   }
 };

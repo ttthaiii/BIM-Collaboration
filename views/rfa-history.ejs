@@ -1,0 +1,38 @@
+<!-- views/rfa-history.ejs -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RFA Document History</title>
+</head>
+<body>
+    <h1>ประวัติการส่งเอกสาร RFA</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>โครงการ</th>
+                <th>หมวดงาน</th>
+                <th>เลขที่เอกสาร</th>
+                <th>Rev.No</th>
+                <th>วันที่ส่ง</th>
+                <th>ชื่อไฟล์</th>
+                <th>ผู้ส่ง</th>
+                <th>ดูเอกสาร</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% documents.forEach(doc => { %>
+                <tr>
+                    <td><%= doc.site_name %></td>
+                    <td><%= doc.category_name %></td>
+                    <td><%= doc.document_number %></td>
+                    <td><%= doc.revision_number %></td>
+                    <td><%= new Date(doc.submission_date).toLocaleString() %></td>
+                    <td><%= doc.file_name %></td>
+                    <td><%= doc.submitter %></td>
+                    <td><a href="<%= doc.file_url %>" target="_blank">ดูเอกสาร</a></td>
+                </tr>
+            <% }) %>
+        </tbody>
+    </table>
+</body>
+</html>

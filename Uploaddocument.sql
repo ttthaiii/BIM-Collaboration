@@ -34,10 +34,32 @@ CREATE TABLE documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     file_name VARCHAR(255) NOT NULL,
-    file_url TEXT DEFAULT NULL, -- file_url อาจเป็น NULL ได้
+    file_url TEXT DEFAULT NULL,
     google_file_id VARCHAR(255) NOT NULL,
-    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ตารางหมวดงาน (สำหรับ RFA)
+CREATE TABLE work_categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category_code VARCHAR(10) NOT NULL,
+    category_name VARCHAR(255) NOT NULL,
+    site_id INT NOT NULL,
+    active BOOLEAN DEFAULT true,
+    UNIQUE KEY unique_category (category_code, site_id)
+);
+-- ตารางเอกสาร RFA
+CREATE TABLE rfa_documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    document_number VARCHAR(3) NOT NULL,
+    revision_number VARCHAR(2) NOT NULL DEFAULT '00',
+    site_id INT NOT NULL,
+    category_id INT NOT NULL,
+    document_id INT NOT NULL,
+    status ENUM('draft', 'submitted', 'approved', 'rejected') DEFAULT 'draft',
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_doc (site_id, category_id, document_number, revision_number)
 );
 
 -- เพิ่มข้อมูลในตาราง sites
@@ -61,3 +83,11 @@ INSERT INTO user_sites (user_id, site_id) VALUES
 -- เพิ่มข้อมูลตัวอย่าง
 INSERT INTO documents (user_id, file_name, file_url, google_file_id) 
 VALUES (1, 'example.pdf', 'https://drive.google.com/file/d/123456abcXYZ', '123456abcXYZ');
+
+-- เพิ่มข้อมูลตัวอย่างในตาราง work_categories
+INSERT INTO work_categories (category_code, category_name, site_id) VALUES
+('ST', 'Structure', 1),
+('AR', 'Architecture', 1),
+('LA', 'Landscape', 1);
+
+DESCRIBE documents;

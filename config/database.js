@@ -35,12 +35,35 @@ const testConnection = async () => {
 };
 
 async function saveDocument(userId, fileName, fileUrl, fileId) {
-    const query = `
-        INSERT INTO documents (user_id, file_name, file_url, google_file_id)
-        VALUES (?, ?, ?, ?)
-    `;
-    console.log('Saving document with data:', { userId, fileName, fileUrl, googleFileId: fileId });
-    await pool.execute(query, [userId, fileName, fileUrl, fileId]);
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        
+        // เช็คว่ามีไฟล์นี้ในระบบแล้วหรือไม่
+        const [existing] = await connection.query(
+            'SELECT id FROM documents WHERE google_file_id = ?',
+            [fileId]
+        );
+
+        if (existing.length > 0) {
+            console.log('Document already exists in database');
+            await connection.commit();
+            return existing[0].id;
+        }
+
+        const [result] = await connection.query(
+            'INSERT INTO documents (user_id, file_name, file_url, google_file_id) VALUES (?, ?, ?, ?)',
+            [userId, fileName, fileUrl, fileId]
+        );
+
+        await connection.commit();
+        return result.insertId;
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
 }
 
 
