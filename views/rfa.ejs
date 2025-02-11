@@ -235,7 +235,22 @@
         button[type="submit"]:disabled {
             background-color: #cccccc;
             cursor: not-allowed;
-        }                 
+        }    
+        .btn-loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        /* เพิ่ม CSS สำหรับ file validation */
+        .file-error {
+            border-color: #dc3545;
+        }
+        
+        .validation-message {
+            color: #dc3545;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }                     
     </style>
 </head>
 <body>
@@ -313,7 +328,7 @@
                            id="documentName" 
                            name="documentName" 
                            required 
-                           placeholder="|"
+                           placeholder="ระบุชื่อเอกสาร"
                            autocomplete="off">
                 </div>
                 
@@ -325,19 +340,170 @@
                            required>
                 </div>
                 
-                <button type="submit">ส่งเอกสาร</button>
+                <button type="submit" id="submitButton">ส่งเอกสาร</button>
             </form>
             <div id="uploadStatus"></div>
         </div>
     </div>
 
     <script>
+        function validateInput() {
+            const documentNumber = document.getElementById('documentNumber');
+            const pattern = /^[0-9]{3}$/;
+            
+            if (!pattern.test(documentNumber.value)) {
+                showStatus('เลขที่เอกสารต้องเป็นตัวเลข 3 หลัก', 'not-found');
+                return false;
+            }
+            return true;
+        }
+
+        // ฟังก์ชันสำหรับ validate file
+        function validateFile(file) {
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            const allowedTypes = ['application/pdf', 'application/msword', 
+                                'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+            
+            if (file.size > maxSize) {
+                showStatus('ขนาดไฟล์ต้องไม่เกิน 10MB', 'error');
+                return false;
+            }
+            
+            if (!allowedTypes.includes(file.type)) {
+                showStatus('รองรับเฉพาะไฟล์ PDF และ Word เท่านั้น', 'error');
+                return false;
+            }
+            
+            return true;
+        }
+
+        // ฟังก์ชันสำหรับ set loading state
+        function setLoading(isLoading) {
+            const searchBtn = document.getElementById('searchButton');
+            const inputs = document.querySelectorAll('input, select, button');
+            
+            inputs.forEach(input => {
+                input.disabled = isLoading;
+            });
+            
+            if (isLoading) {
+                searchBtn.classList.add('btn-loading');
+                searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังค้นหา...';
+            } else {
+                searchBtn.classList.remove('btn-loading');
+                searchBtn.innerHTML = '<i class="fas fa-search"></i> ค้นหาเอกสาร';
+            }
+        }
+
+        // ฟังก์ชันสำหรับจัดการ error
+        function handleError(error, type = 'search') {
+            console.error(`${type} error:`, error);
+            let message = 'เกิดข้อผิดพลาด';
+            
+            if (error.message.includes('500')) {
+                message = 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์';
+            } else if (error.message.includes('404')) {
+                message = 'ไม่พบข้อมูลที่ต้องการ';
+            }
+            
+            showStatus(`${type === 'search' ? 'ค้นหา' : 'อัพโหลด'}ไม่สำเร็จ: ${message}`, 'error');
+        }
+
+        // ปรับปรุงฟังก์ชัน checkDocument
+        async function checkDocument() {
+            if (!validateInput()) return;
+            
+            const siteId = document.getElementById('site').value;
+            const category = document.getElementById('categoryInput').value;
+            const documentNumber = document.getElementById('documentNumber').value;
+
+            if (!siteId || !category || !documentNumber) {
+                showStatus('กรุณากรอกข้อมูลให้ครบถ้วน', 'not-found');
+                return;
+            }
+
+            try {
+                setLoading(true);
+                showStatus('กำลังค้นหาเอกสาร...', 'loading');
+
+                const response = await fetch(`/user/rfa/check-document?siteId=${siteId}&category=${category}&documentNumber=${documentNumber}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                const data = await response.json();
+                console.log('Check document response:', data);
+
+                document.getElementById('existingDocuments').style.display = 'none';
+                document.getElementById('uploadSection').style.display = 'none';
+
+                if (data.success) {
+                    handleSearchResult(data, { siteId, category, documentNumber });
+                } else {
+                    showStatus(data.error || 'เกิดข้อผิดพลาดในการค้นหา', 'not-found');
+                }
+            } catch (error) {
+                handleError(error);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // ฟังก์ชันสำหรับจัดการผลการค้นหา
+        function handleSearchResult(data, formData) {
+            if (data.exists && data.documents.length > 0) {
+                showExistingDocuments(data.documents);
+            } else {
+                showUploadSection(formData);
+            }
+        }
+
+        // ฟังก์ชันสำหรับแสดงเอกสารที่มีอยู่
+        function showExistingDocuments(documents) {
+            showStatus('รายการเอกสารที่มีในระบบ', 'found');
+            document.getElementById('existingDocuments').style.display = 'block';
+            
+            const tbody = document.getElementById('documentsTableBody');
+            tbody.innerHTML = '';
+            documents.forEach(doc => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${doc.revision_number}</td>
+                        <td>${formatDate(doc.submission_date) || '-'}</td>
+                        <td><a href="${doc.file_url}" target="_blank">ดูไฟล์</a></td>
+                        <td>${doc.submitter}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        // ฟังก์ชันสำหรับแสดงส่วนอัพโหลด
+        function showUploadSection(formData) {
+            showStatus('ไม่มีเอกสารฉบับนี้ในระบบ', 'not-found');
+            document.getElementById('uploadSection').style.display = 'block';
+            
+            document.getElementById('uploadSiteId').value = formData.siteId;
+            document.getElementById('uploadCategory').value = formData.category;
+            document.getElementById('uploadDocumentNumber').value = formData.documentNumber;
+        }
+
+        // ฟังก์ชันสำหรับจัดรูปแบบวันที่
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleDateString('th-TH');
+        }        
+
         function showStatus(message, type) {
             const statusDiv = document.getElementById('searchStatus');
             statusDiv.textContent = message;
             statusDiv.className = `status-message ${type}`;
             statusDiv.style.display = 'block';
-        }  
+
+            // ถ้าเป็นสถานะ loading ให้แสดง spinner
+            if (type === 'loading') {
+                statusDiv.innerHTML = `
+                    <i class="fas fa-spinner fa-spin"></i> ${message}
+                `;
+            }
+        } 
         // ผูกเหตุการณ์กับปุ่มค้นหา
         document.getElementById('searchButton').addEventListener('click', checkDocument);
 
@@ -400,60 +566,6 @@
             }
         });
 
-        // ตรวจสอบเอกสารซ้ำ
-        async function checkDocument() {
-            const siteId = document.getElementById('site').value;
-            const category = document.getElementById('categoryInput').value;
-            const documentNumber = document.getElementById('documentNumber').value;
-
-            if (!siteId || !category || !documentNumber) {
-                showStatus('กรุณากรอกข้อมูลให้ครบถ้วน', 'not-found');
-                return;
-            }
-
-            try {
-                showStatus('กำลังค้นหาเอกสาร...', 'loading');
-
-                const response = await fetch(`/user/rfa/check-document?siteId=${siteId}&category=${category}&documentNumber=${documentNumber}`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    if (data.exists) {
-                        // พบเอกสาร
-                        showStatus('รายการเอกสารที่มีในระบบ', 'found');
-                        document.getElementById('existingDocuments').style.display = 'block';
-                        document.getElementById('uploadSection').style.display = 'none';
-                        
-                        const tbody = document.getElementById('documentsTableBody');
-                        tbody.innerHTML = '';
-                        data.documents.forEach(doc => {
-                            tbody.innerHTML += `
-                                <tr>
-                                    <td>${doc.revision_number}</td>
-                                    <td>${new Date(doc.submission_date).toLocaleDateString('th-TH')}</td>
-                                    <td><a href="${doc.file_url}" target="_blank">ดูไฟล์</a></td>
-                                    <td>${doc.submitter}</td>
-                                </tr>
-                            `;
-                        });
-                    } else {
-                        // ไม่พบเอกสาร
-                        showStatus('ไม่มีเอกสารฉบับนี้ในระบบ', 'not-found');
-                        document.getElementById('existingDocuments').style.display = 'none';
-                        document.getElementById('uploadSection').style.display = 'block';
-                        
-                        // เก็บข้อมูลสำหรับการอัพโหลด
-                        document.getElementById('uploadSiteId').value = siteId;
-                        document.getElementById('uploadCategory').value = category;
-                        document.getElementById('uploadDocumentNumber').value = documentNumber;
-                    }
-                }
-            } catch (error) {
-                console.error('Error checking document:', error);
-                showStatus('เกิดข้อผิดพลาดในการค้นหา', 'not-found');
-            }
-        }
-
         // ผูกเหตุการณ์การตรวจสอบเอกสาร
         ['site', 'categoryInput', 'documentNumber'].forEach(id => {
             document.getElementById(id).addEventListener('change', checkDocument);
@@ -464,12 +576,10 @@
             e.preventDefault();
             const statusDiv = document.getElementById('uploadStatus');
             const submitButton = e.target.querySelector('button[type="submit"]');
+            const formData = new FormData(e.target);
             
             try {
-                // ปิดปุ่มระหว่างอัพโหลด
                 submitButton.disabled = true;
-                
-                const formData = new FormData(e.target);
                 statusDiv.textContent = 'กำลังอัพโหลดไฟล์...';
                 statusDiv.className = 'uploading';
 
@@ -499,7 +609,6 @@
                 statusDiv.textContent = `อัพโหลดไม่สำเร็จ: ${error.message}`;
                 statusDiv.className = 'error';
             } finally {
-                // เปิดปุ่มอีกครั้ง
                 submitButton.disabled = false;
             }
         });

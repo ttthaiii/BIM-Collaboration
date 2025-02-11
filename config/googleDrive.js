@@ -22,43 +22,34 @@ const checkRequiredEnvVars = () => {
 };
 
 // Private key validation and formatting
-const validateAndFormatPrivateKey = () => {
+const formatPrivateKey = (key) => {
     try {
-        let privateKey = process.env.GOOGLE_PRIVATE_KEY;
-        
-        // Try to decode if it's base64 encoded
+        // ถ้าเป็น base64 ให้ decode ก่อน
         try {
-            const decoded = Buffer.from(privateKey, 'base64').toString();
+            const decoded = Buffer.from(key, 'base64').toString();
             if (decoded.includes('PRIVATE KEY')) {
-                privateKey = decoded;
+                key = decoded;
             }
         } catch (e) {
-            console.log('Key is not in base64 format, processing as-is');
+            console.log('Key is not in base64 format');
         }
 
-        // Clean up the private key format
-        privateKey = privateKey
-            .replace(/\\n/g, '\n')
-            .replace(/["']/g, '')
-            .trim();
+        // ทำความสะอาด key
+        key = key.replace(/\\n/g, '\n')
+                 .replace(/["']/g, '')
+                 .trim();
 
-        // Ensure proper header and footer
-        if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-            privateKey = '-----BEGIN PRIVATE KEY-----\n' + privateKey;
+        // ตรวจสอบรูปแบบ
+        if (!key.includes('-----BEGIN PRIVATE KEY-----')) {
+            key = '-----BEGIN PRIVATE KEY-----\n' + key;
         }
-        if (!privateKey.includes('-----END PRIVATE KEY-----')) {
-            privateKey = privateKey + '\n-----END PRIVATE KEY-----';
-        }
-
-        // Validate final format
-        if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || 
-            !privateKey.includes('-----END PRIVATE KEY-----')) {
-            throw new Error('Invalid private key format after processing');
+        if (!key.includes('-----END PRIVATE KEY-----')) {
+            key = key + '\n-----END PRIVATE KEY-----';
         }
 
-        return privateKey;
+        return key;
     } catch (error) {
-        console.error('Private key validation/formatting failed:', error);
+        console.error('Error formatting private key:', error);
         throw error;
     }
 };
@@ -66,8 +57,8 @@ const validateAndFormatPrivateKey = () => {
 // Create Google Drive client
 const createDriveClient = async () => {
     try {
-        const privateKey = validateAndFormatPrivateKey();
-        
+        const privateKey = formatPrivateKey(process.env.GOOGLE_PRIVATE_KEY);
+
         const auth = new google.auth.GoogleAuth({
             credentials: {
                 client_email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -75,8 +66,7 @@ const createDriveClient = async () => {
             },
             scopes: [
                 'https://www.googleapis.com/auth/drive',
-                'https://www.googleapis.com/auth/drive.file',
-                'https://www.googleapis.com/auth/drive.metadata'
+                'https://www.googleapis.com/auth/drive.file'
             ]
         });
 
@@ -87,6 +77,7 @@ const createDriveClient = async () => {
         throw error;
     }
 };
+
 
 // File name sanitization
 const sanitizeFileName = (fileName) => {
@@ -116,36 +107,15 @@ const sanitizeFileName = (fileName) => {
 const driveService = {
     uploadToDrive: async (userId, filePath, fileName, mimetype) => {
         try {
-            if (!userId || !filePath || !fileName) {
-                throw new Error('Missing required parameters for upload');
-            }
-
             console.log('Starting file upload process:', { userId, fileName });
             const drive = await createDriveClient();
 
-            // Verify file exists
             if (!fsSync.existsSync(filePath)) {
                 throw new Error(`File not found: ${filePath}`);
             }
 
-            const sanitizedFileName = sanitizeFileName(fileName);
-
-            // Check for existing file
-            const existingFiles = await drive.files.list({
-                q: `name = '${sanitizedFileName}' and '${process.env.GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false`,
-                fields: 'files(id, name, webViewLink)',
-                spaces: 'drive',
-                supportsAllDrives: true
-            });
-
-            if (existingFiles.data.files.length > 0) {
-                console.log('File already exists:', existingFiles.data.files[0]);
-                return existingFiles.data.files[0];
-            }
-
-            // Prepare upload
             const fileMetadata = {
-                name: sanitizedFileName,
+                name: fileName,
                 parents: [process.env.GOOGLE_DRIVE_FOLDER_ID]
             };
 
@@ -154,16 +124,33 @@ const driveService = {
                 body: fsSync.createReadStream(filePath)
             };
 
-            // Perform upload
+            console.log('Uploading to Google Drive...');
             const response = await drive.files.create({
                 requestBody: fileMetadata,
                 media: media,
-                fields: 'id, name, webViewLink, mimeType, size',
-                supportsAllDrives: true,
-                enforceSingleParent: true
+                fields: 'id, name, webViewLink',
+                supportsAllDrives: true
             });
 
-            console.log('Upload successful:', response.data);
+            try {
+                await drive.permissions.create({
+                    fileId: response.data.id,
+                    requestBody: {
+                        role: 'reader',
+                        type: 'anyone'
+                    },
+                    supportsAllDrives: true
+                });
+            } catch (permError) {
+                console.warn('Permission setting failed:', permError);
+            }
+
+            console.log('Upload successful:', {
+                id: response.data.id,
+                name: response.data.name,
+                link: response.data.webViewLink
+            });
+
             return response.data;
 
         } catch (error) {
@@ -175,32 +162,24 @@ const driveService = {
     verifyAccess: async () => {
         try {
             const drive = await createDriveClient();
-            const teamDrive = await drive.drives.get({
-                driveId: process.env.GOOGLE_TEAM_DRIVE_ID,
+            const result = await drive.files.list({
+                pageSize: 1,
                 supportsAllDrives: true
             });
-
-            console.log('Team Drive access verified:', teamDrive.data.name);
+            console.log('Drive access verified');
             return true;
         } catch (error) {
-            console.error('Team Drive access verification failed:', error);
+            console.error('Drive access verification failed:', error);
             return false;
         }
     },
 
     initialize: async () => {
         try {
-            console.log('Initializing Google Drive service...');
-            
-            // Check environment variables
-            checkRequiredEnvVars();
-            
-            // Verify access
             const hasAccess = await driveService.verifyAccess();
             if (!hasAccess) {
                 throw new Error('Failed to verify Google Drive access');
             }
-
             console.log('Google Drive service initialized successfully');
             return true;
         } catch (error) {
@@ -208,6 +187,7 @@ const driveService = {
             throw error;
         }
     },
+
 
     deleteFile: async (fileId) => {
         try {

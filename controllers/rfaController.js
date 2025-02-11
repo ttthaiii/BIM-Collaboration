@@ -41,54 +41,64 @@ exports.uploadRFADocument = async (req, res) => {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        console.log('Start uploading file to Google Drive...');
+        // Convert filename to UTF-8
+        const fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
 
-        // อัพโหลดไฟล์ไปยัง Google Drive
+        // Get category ID
+        const [categoryResult] = await pool.query(
+            'SELECT id FROM work_categories WHERE category_code = ? AND site_id = ? AND active = true',
+            [req.body.category, req.body.siteId]
+        );
+
+        if (!categoryResult.length) {
+            throw new Error('Category not found');
+        }
+
+        const categoryId = categoryResult[0].id;
+
+        // Upload to Google Drive
         const uploadResult = await driveService.uploadToDrive(
             req.session.user.id,
             req.file.path,
-            req.file.originalname,
+            fileName,
             req.file.mimetype
         );
 
-        console.log('File uploaded to Drive:', uploadResult);
-
-        // เริ่ม transaction
+        // Start database transaction
         connection = await pool.getConnection();
         await connection.beginTransaction();
 
         try {
-            // บันทึกข้อมูลในตาราง documents
+            // Insert document
             const [documentResult] = await connection.query(
                 'INSERT INTO documents (user_id, file_name, file_url, google_file_id) VALUES (?, ?, ?, ?)',
                 [
                     req.session.user.id,
-                    req.file.originalname,
+                    fileName,
                     uploadResult.webViewLink,
                     uploadResult.id
                 ]
             );
 
-            // บันทึกข้อมูลในตาราง rfa_documents
-            const { siteId, category, documentNumber } = req.body;
+            // Insert RFA document
             await connection.query(
-                'INSERT INTO rfa_documents (site_id, category_id, document_number, revision_number, document_id) VALUES (?, ?, ?, ?, ?)',
-                [siteId, category, documentNumber, '00', documentResult.insertId]
+                `INSERT INTO rfa_documents 
+                (site_id, category_id, document_number, revision_number, document_id, created_by) 
+                VALUES (?, ?, ?, '00', ?, ?)`,
+                [
+                    req.body.siteId,
+                    categoryId,
+                    req.body.documentNumber,
+                    documentResult.insertId,
+                    req.session.user.id
+                ]
             );
 
             await connection.commit();
-
-            // ลบไฟล์ชั่วคราว
-            try {
-                await fs.unlink(req.file.path);
-            } catch (unlinkError) {
-                console.error('Error deleting temporary file:', unlinkError);
-                // ไม่ throw error เพราะการลบไฟล์ชั่วคราวไม่ใช่ส่วนสำคัญ
-            }
-
+            
             return res.json({
                 success: true,
-                message: 'RFA document uploaded successfully',
+                message: 'Upload successful',
                 fileUrl: uploadResult.webViewLink
             });
 
@@ -98,33 +108,21 @@ exports.uploadRFADocument = async (req, res) => {
         }
 
     } catch (error) {
-        console.error('RFA upload error:', error);
-
-        // ลบไฟล์ชั่วคราวถ้ามี error
+        console.error('Upload error:', error);
+        
         if (req.file?.path) {
-            try {
-                await fs.unlink(req.file.path);
-            } catch (unlinkError) {
-                console.error('Error deleting temporary file:', unlinkError);
-            }
+            await fs.unlink(req.file.path).catch(console.error);
         }
-
-        // ส่ง error response ถ้ายังไม่ได้ส่ง response ไป
-        if (!res.headersSent) {
-            return res.status(500).json({
-                success: false,
-                error: 'Failed to upload RFA document',
-                details: error.message
-            });
-        }
-
+        
+        return res.status(500).json({
+            success: false,
+            error: error.message
+        });
     } finally {
-        // คืน connection กลับไปยัง pool
-        if (connection) {
-            connection.release();
-        }
+        if (connection) connection.release();
     }
 };
+
 
 // ดึงรายการโครงการที่ user มีสิทธิ์เข้าถึง
 exports.getUserSites = async (req, res) => {
@@ -208,27 +206,65 @@ exports.getCategories = async (req, res) => {
 // ตรวจสอบเอกสารซ้ำ
 exports.checkExistingDocument = async (req, res) => {
     try {
-        const { siteId, categoryId, documentNumber } = req.query;
+        const { siteId, category, documentNumber } = req.query;
         
+        console.log('Checking document:', { siteId, category, documentNumber });
+
+        // 1. หา category_id จาก category_code
+        const [categoryResult] = await pool.query(`
+            SELECT id 
+            FROM work_categories 
+            WHERE category_code = ? 
+            AND site_id = ?
+            AND active = true
+        `, [category, siteId]);
+
+        if (!categoryResult.length) {
+            console.log('Category not found:', category);
+            return res.json({
+                success: true,
+                exists: false,
+                documents: []
+            });
+        }
+
+        const categoryId = categoryResult[0].id;
+
+        // 2. ค้นหาเอกสาร RFA
         const [documents] = await pool.query(`
-            SELECT r.revision_number, r.submission_date, d.file_url, 
-                   u.username as submitter
+            SELECT 
+                r.document_number,
+                r.revision_number,
+                DATE_FORMAT(r.created_at, '%d/%m/%Y') as submission_date,
+                d.file_url,
+                u.username as submitter,
+                wc.category_name,
+                s.site_name
             FROM rfa_documents r
             JOIN documents d ON r.document_id = d.id
-            JOIN users u ON d.user_id = u.id
+            JOIN users u ON r.created_by = u.id
+            JOIN work_categories wc ON r.category_id = wc.id
+            JOIN sites s ON r.site_id = s.id
             WHERE r.site_id = ? 
-            AND r.category_id = ? 
+            AND r.category_id = ?
             AND r.document_number = ?
             ORDER BY r.revision_number DESC
         `, [siteId, categoryId, documentNumber]);
+
+        console.log('Documents found:', documents);
         
         res.json({ 
             success: true, 
             exists: documents.length > 0,
             documents 
         });
+
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        console.error('Error in checkExistingDocument:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
     }
 };
 
