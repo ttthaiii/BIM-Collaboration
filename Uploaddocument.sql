@@ -157,3 +157,26 @@ INSERT INTO work_categories (category_code, category_name, site_id, description)
 ('ST', 'Structure', 1, 'Structural engineering documents'),
 ('AR', 'Architecture', 1, 'Architectural design documents'),
 ('LA', 'Landscape', 1, 'Landscape design documents');
+
+ALTER TABLE rfa_documents 
+MODIFY COLUMN status ENUM(
+    'BIM ส่งแบบ',
+    'ส่ง CM',
+    'อนุมัติ',
+    'อนุมัติตามคอมเมนต์ (ไม่ต้องแก้ไข)',
+    'อนุมัติตามคอมเมนต์ (ต้องแก้ไข)',
+    'ไม่อนุมัติ',
+    'แก้ไข'
+) DEFAULT 'BIM ส่งแบบ';
+
+-- แก้ไขตาราง rfa_history ด้วย
+ALTER TABLE rfa_history 
+MODIFY COLUMN status ENUM(
+    'BIM ส่งแบบ',
+    'ส่ง CM',
+    'อนุมัติ',
+    'อนุมัติตามคอมเมนต์ (ไม่ต้องแก้ไข)',
+    'อนุมัติตามคอมเมนต์ (ต้องแก้ไข)',
+    'ไม่อนุมัติ',
+    'แก้ไข'
+);

@@ -77,7 +77,7 @@ exports.getCMView = async (req, res) => {
 exports.uploadRFADocument = async (req, res) => {
     let connection;
     try {
-        
+        // 1. ตรวจสอบสิทธิ์ผู้ใช้
         if (!checkRFAPermission(req.session.user.jobPosition)) {
             return res.status(403).json({ 
                 success: false, 
@@ -85,26 +85,51 @@ exports.uploadRFADocument = async (req, res) => {
             });
         }
 
+        // 2. ตรวจสอบไฟล์
         if (!req.file) {
-            return res.status(400).json({ error: 'No file uploaded' });
+            return res.status(400).json({ 
+                success: false, 
+                error: 'กรุณาเลือกไฟล์' 
+            });
         }
 
-        // Convert filename to UTF-8
+        // 3. แปลงชื่อไฟล์เป็น UTF-8
         const fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
 
-        // Get category ID
+        // 4. ดึง category ID
         const [categoryResult] = await pool.query(
             'SELECT id FROM work_categories WHERE category_code = ? AND site_id = ? AND active = true',
             [req.body.category, req.body.siteId]
         );
 
         if (!categoryResult.length) {
-            throw new Error('Category not found');
+            throw new Error('ไม่พบหมวดงาน');
         }
 
         const categoryId = categoryResult[0].id;
 
-        // Upload to Google Drive
+        // 5. ตรวจสอบเอกสารซ้ำ
+        const [existingDoc] = await pool.query(
+            `SELECT * FROM rfa_documents 
+             WHERE site_id = ? 
+             AND category_id = ? 
+             AND document_number = ? 
+             AND revision_number = ?`,
+            [req.body.siteId, categoryId, req.body.documentNumber, '00']
+        );
+
+        if (existingDoc.length > 0) {
+            // ลบไฟล์ที่อัพโหลดมาแล้วถ้ามีการตรวจพบว่าซ้ำ
+            if (req.file?.path) {
+                await fs.unlink(req.file.path).catch(console.error);
+            }
+            return res.status(400).json({
+                success: false,
+                error: 'เอกสารนี้มีอยู่ในระบบแล้ว'
+            });
+        }
+
+        // 6. อัพโหลดไฟล์ไป Google Drive
         const uploadResult = await driveService.uploadToDrive(
             req.session.user.id,
             req.file.path,
@@ -112,12 +137,12 @@ exports.uploadRFADocument = async (req, res) => {
             req.file.mimetype
         );
 
-        // Start database transaction
+        // 7. เริ่ม Database Transaction
         connection = await pool.getConnection();
         await connection.beginTransaction();
 
         try {
-            // Insert document
+            // 8. บันทึกข้อมูลเอกสาร
             const [documentResult] = await connection.query(
                 'INSERT INTO documents (user_id, file_name, file_url, google_file_id) VALUES (?, ?, ?, ?)',
                 [
@@ -128,11 +153,11 @@ exports.uploadRFADocument = async (req, res) => {
                 ]
             );
 
-            // Insert RFA document
+            // 9. บันทึกข้อมูล RFA
             await connection.query(
                 `INSERT INTO rfa_documents 
-                (site_id, category_id, document_number, revision_number, document_id, created_by) 
-                VALUES (?, ?, ?, '00', ?, ?)`,
+                (site_id, category_id, document_number, revision_number, document_id, created_by, status) 
+                VALUES (?, ?, ?, '00', ?, ?, 'BIM ส่งแบบ')`,
                 [
                     req.body.siteId,
                     categoryId,
@@ -142,15 +167,17 @@ exports.uploadRFADocument = async (req, res) => {
                 ]
             );
 
+            // 10. Commit transaction
             await connection.commit();
             
             return res.json({
                 success: true,
-                message: 'Upload successful',
+                message: 'อัพโหลดเอกสารสำเร็จ',
                 fileUrl: uploadResult.webViewLink
             });
 
         } catch (dbError) {
+            // 11. Rollback เมื่อเกิดข้อผิดพลาด
             await connection.rollback();
             throw dbError;
         }
@@ -158,15 +185,17 @@ exports.uploadRFADocument = async (req, res) => {
     } catch (error) {
         console.error('Upload error:', error);
         
+        // 12. ลบไฟล์ที่อัพโหลดมาแล้วถ้าเกิดข้อผิดพลาด
         if (req.file?.path) {
             await fs.unlink(req.file.path).catch(console.error);
         }
         
         return res.status(500).json({
             success: false,
-            error: error.message
+            error: error.message || 'เกิดข้อผิดพลาดในการอัพโหลดเอกสาร'
         });
     } finally {
+        // 13. Release connection
         if (connection) connection.release();
     }
 };
@@ -263,6 +292,7 @@ exports.checkExistingDocument = async (req, res) => {
             SELECT 
                 r.document_number,
                 r.revision_number,
+                r.status,
                 DATE_FORMAT(r.created_at, '%d/%m/%Y') as submission_date,
                 d.file_url,
                 u.username as submitter,
@@ -276,6 +306,7 @@ exports.checkExistingDocument = async (req, res) => {
             WHERE r.site_id = ? 
             AND r.category_id = ?
             AND r.document_number = ?
+            AND r.status IN ('BIM ส่งแบบ', 'ส่ง CM', 'อนุมัติ', 'อนุมัติตามคอมเมนต์ (ไม่ต้องแก้ไข)')
             ORDER BY r.revision_number DESC
         `, [siteId, categoryId, documentNumber]);
 
