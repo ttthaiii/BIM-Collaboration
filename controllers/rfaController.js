@@ -175,51 +175,23 @@ exports.uploadRFADocument = async (req, res) => {
 // ดึงรายการโครงการที่ user มีสิทธิ์เข้าถึง
 exports.getUserSites = async (req, res) => {
     try {
-        // เพิ่มการตรวจสอบ session
-        if (!req.session || !req.session.user) {
-            console.log('No user session found');
-            return res.status(401).json({ 
-                success: false, 
-                error: 'User not authenticated' 
-            });
-        }
-
-        console.log('Session:', req.session);
-        console.log('User ID:', req.session.user.id);
-
-        // ดึงข้อมูลโครงการ
         const [sites] = await pool.query(`
-            SELECT s.id, s.site_name 
+            SELECT DISTINCT s.id, s.site_name 
             FROM sites s
-            JOIN user_sites us ON s.id = us.site_id
+            INNER JOIN user_sites us ON s.id = us.site_id
             WHERE us.user_id = ?
+            ORDER BY s.site_name ASC
         `, [req.session.user.id]);
-        
-        console.log('Sites found:', sites);
 
-        // ตรวจสอบว่ามีข้อมูลหรือไม่
-        if (!sites || sites.length === 0) {
-            console.log('No sites found for user');
-            return res.json({
-                success: true,
-                sites: []
-            });
-        }
-
-        // ส่งข้อมูลกลับ
-        return res.json({
+        res.json({
             success: true,
-            sites: sites.map(site => ({
-                id: site.id,
-                site_name: site.site_name
-            }))
+            sites: sites
         });
-
     } catch (error) {
-        console.error('Error in getUserSites:', error);
-        return res.status(500).json({ 
-            success: false, 
-            error: 'Failed to fetch sites: ' + error.message 
+        console.error('Error getting user sites:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
         });
     }
 };

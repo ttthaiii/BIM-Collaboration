@@ -75,22 +75,19 @@ exports.getUserMenu = (req, res) => {
 
 exports.getUserDocuments = async (req, res) => {
   try {
-      // ดึงข้อมูลผู้ใช้พร้อมตำแหน่งงาน
       const [userData] = await pool.query(`
-          SELECT u.*, s.site_name 
+          SELECT u.* 
           FROM users u
-          JOIN user_sites us ON u.id = us.user_id
-          JOIN sites s ON us.site_id = s.id
           WHERE u.id = ?
           LIMIT 1
       `, [req.session.user.id]);
 
-      // ดึงข้อมูล sites ที่ผู้ใช้มีสิทธิ์เข้าถึง
       const [sites] = await pool.query(`
-          SELECT s.* 
+          SELECT DISTINCT s.* 
           FROM sites s
-          JOIN user_sites us ON s.id = us.site_id
+          INNER JOIN user_sites us ON s.id = us.site_id
           WHERE us.user_id = ?
+          ORDER BY s.site_name ASC
       `, [req.session.user.id]);
 
       if (!userData.length) {

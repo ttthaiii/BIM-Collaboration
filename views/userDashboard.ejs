@@ -114,6 +114,26 @@
         .dropdown-content a:hover {
             background-color: #f1f1f1;
         }
+        .projects-list {
+            margin-top: 10px;
+        }
+
+        .projects-list span {
+            display: inline-block;
+            background: #f5f5f5;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin: 2px;
+        }
+
+        .user-info p {
+            margin: 5px 0;
+        }
+
+        .user-info .projects-label {
+            font-weight: bold;
+            margin-right: 5px;
+        }        
     </style>
 </head>
 <body>
@@ -121,7 +141,12 @@
         <div class="user-info">
             <h2>Welcome <%= user.username %></h2>
             <p>Position: <%= user.jobPosition %></p>
-            <p>Project: <%= sites[0].site_name %></p>
+            <div class="projects-list">
+                <span class="projects-label">Projects:</span>
+                <% sites.forEach((site, index) => { %>
+                    <span><%= site.site_name %></span>
+                <% }); %>
+            </div>
         </div>
     </div>
 
