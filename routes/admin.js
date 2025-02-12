@@ -20,6 +20,8 @@ router.post('/users/update', adminController.updateUser);
 router.post('/sites/add', adminController.addSite);
 router.post('/sites/update', adminController.updateSite);
 router.post('/sites/delete', adminController.deleteSite);
+// Add new route for bulk upload
+router.post('/bulk-upload', adminController.bulkUploadUsers);
 
 router.get('/logout', (req, res) => {
   req.session.destroy((err) => {
@@ -31,5 +33,6 @@ router.get('/logout', (req, res) => {
     res.redirect('/login'); // กลับไปหน้า Login
   });
 });
+
 
 module.exports = router;

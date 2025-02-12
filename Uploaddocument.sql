@@ -19,7 +19,7 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role ENUM('user', 'admin') DEFAULT 'user',
-    job_position ENUM('BIM', 'Adminsite', 'PD', 'PM', 'PE', 'OE', 'SE', 'FM') NULL,
+    job_position ENUM('BIM', 'Adminsite', 'PD', 'PM', 'PE', 'OE', 'SE', 'FM', 'CM') NULL,
     email VARCHAR(255) NULL,
     active BOOLEAN DEFAULT true,
     last_login TIMESTAMP NULL,
@@ -138,16 +138,19 @@ DELIMITER ;
 INSERT INTO sites (site_name) VALUES
 ('Bann Sansiri Bangna'),
 ('DH2-พรานนก'),
-('DH2-สาย1');
+('DH2-สาย1'),
+('Bloom metal health');
 
 INSERT INTO users (username, password, role, job_position, email) VALUES
 ('thai.l', '101622', 'user', 'BIM', 'thai.l@example.com'),
-('krissanapol', 'password2', 'user', 'Adminsite', 'krissanapol@example.com'),
+('krissanapol.m', '101485', 'user', 'Adminsite', 'krissanapol.m@example.com'),
+('thiti.m', '101527', 'user', 'CM', 'thiti.m@example.com'),
 ('admin', 'admin123', 'admin', NULL, 'admin@example.com');
 
 INSERT INTO user_sites (user_id, site_id) VALUES
 (1, 1),
 (2, 2),
+(3, 3),
 (2, 3);
 
 INSERT INTO work_categories (category_code, category_name, site_id, description) VALUES

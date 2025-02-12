@@ -2,6 +2,12 @@ const fs = require('fs').promises;  // เพิ่มการ import fs
 const { pool } = require('../config/database');
 const driveService = require('../config/googleDrive');
 const { uploadFile } = require('./uploadController');
+
+const checkRFAPermission = (jobPosition) => {
+    const authorizedPositions = ['BIM', 'Adminsite', 'OE', 'CM'];
+    return authorizedPositions.includes(jobPosition);
+};
+
 const getCategoryId = async (connection, categoryCode, siteId) => {
     try {
         // เพิ่ม logging เพื่อตรวจสอบค่าที่ส่งมา
@@ -34,9 +40,51 @@ const getCategoryId = async (connection, categoryCode, siteId) => {
     }
 };
 
+// เพิ่มฟังก์ชันสำหรับการเรียกดูข้อมูลตามบทบาท
+exports.getBIMView = async (req, res) => {
+    try {
+        // ตรวจสอบสิทธิ์และดึงข้อมูลเฉพาะสำหรับ BIM
+        const data = await getBIMSpecificData(req.session.user.id);
+        res.render('rfa-bim', { user: req.session.user, data });
+    } catch (error) {
+        console.error('Error in getBIMView:', error);
+        res.status(500).render('error', { error });
+    }
+};
+
+exports.getSiteView = async (req, res) => {
+    try {
+        // ตรวจสอบสิทธิ์และดึงข้อมูลเฉพาะสำหรับ Site
+        const data = await getSiteSpecificData(req.session.user.id);
+        res.render('rfa-site', { user: req.session.user, data });
+    } catch (error) {
+        console.error('Error in getSiteView:', error);
+        res.status(500).render('error', { error });
+    }
+};
+
+exports.getCMView = async (req, res) => {
+    try {
+        // ตรวจสอบสิทธิ์และดึงข้อมูลเฉพาะสำหรับ CM
+        const data = await getCMSpecificData(req.session.user.id);
+        res.render('rfa-cm', { user: req.session.user, data });
+    } catch (error) {
+        console.error('Error in getCMView:', error);
+        res.status(500).render('error', { error });
+    }
+};
+
 exports.uploadRFADocument = async (req, res) => {
     let connection;
     try {
+        
+        if (!checkRFAPermission(req.session.user.jobPosition)) {
+            return res.status(403).json({ 
+                success: false, 
+                error: 'ไม่มีสิทธิ์ในการอัพโหลดเอกสาร RFA' 
+            });
+        }
+
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
@@ -206,6 +254,14 @@ exports.getCategories = async (req, res) => {
 // ตรวจสอบเอกสารซ้ำ
 exports.checkExistingDocument = async (req, res) => {
     try {
+
+        if (!checkRFAPermission(req.session.user.jobPosition)) {
+            return res.status(403).json({ 
+                success: false, 
+                error: 'ไม่มีสิทธิ์ในการตรวจสอบเอกสาร RFA' 
+            });
+        }
+
         const { siteId, category, documentNumber } = req.query;
         
         console.log('Checking document:', { siteId, category, documentNumber });

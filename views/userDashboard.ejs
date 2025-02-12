@@ -129,14 +129,16 @@
         <div class="report-header">
             <div class="report-title">รายงาน</div>
             <div class="report-actions">
-                <div class="dropdown">
-                    <button class="btn btn-primary">Document Request</button>
-                    <div class="dropdown-content">
-                        <a href="/user/rfa" >RFA</a>
-                        <a href="/user/rfi" >RFI</a>
+                <% if (['BIM', 'Adminsite', 'OE', 'CM'].includes(user.jobPosition)) { %>
+                    <div class="dropdown">
+                        <button class="btn btn-primary">Document Request</button>
+                        <div class="dropdown-content">
+                            <a href="/user/rfa">RFA</a>
+                            <a href="/user/rfi">RFI</a>
+                        </div>
                     </div>
-                </div>
-                <a href="/user/work-request"  class="btn btn-secondary">
+                <% } %>
+                <a href="/user/work-request" class="btn btn-secondary">
                     Work Request
                 </a>
             </div>

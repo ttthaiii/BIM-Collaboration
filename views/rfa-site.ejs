@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RFA Upload</title>
+    <!-- นำ styles จาก rfa.ejs มาใช้ -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         * {
@@ -276,14 +277,12 @@
             bottom: 0;
             background: rgba(0,0,0,0.5);
             z-index: 999;
-        }        
-        
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>RFA Document Upload</h1>
-        
         <div class="form-section">
             <form id="documentForm">
                 <!-- ฟอร์มเดิม -->
@@ -395,7 +394,6 @@
             <div id="uploadStatus"></div>
         </div>
     </div>
-
     <script>
         function validateInput() {
             const documentNumber = document.getElementById('documentNumber');

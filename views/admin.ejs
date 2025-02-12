@@ -237,7 +237,31 @@
         text-decoration: none;
         transition: background 0.3s;">
         <i class="fas fa-sign-out-alt"></i> Logout
-        </a>        
+        </a>   
+
+        <div class="user-card">
+            <h2>นำเข้าผู้ใช้จาก Excel</h2>
+            <div class="form-group">
+                <button id="downloadTemplateBtn" class="btn-edit">
+                    ดาวน์โหลด Template
+                </button>
+            </div>
+            <div class="form-group">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="file" 
+                           id="fileUpload"
+                           accept=".xlsx,.xls" 
+                           class="block w-full"
+                           style="padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                    <button id="clearFileBtn" 
+                            class="btn-delete" 
+                            style="display: none;">
+                        ลบไฟล์
+                    </button>
+                </div>
+            </div>
+            <div id="uploadResults" style="display: none;"></div>
+        </div>
 
         <!-- Add User Form -->
         <div class="user-card">
@@ -309,9 +333,8 @@
                             <th></th>
                         </tr>
                     </thead>
-                    <!-- ส่วนแสดงรายการ users -->
                     <tbody id="userTable">
-                        <% users.forEach(user => { %>
+                        <% users.forEach(function(user) { %>
                         <tr id="user_row_<%= user.id %>">
                             <td>
                                 <input type="text" id="username_<%= user.id %>" value="<%= user.username %>" required>
@@ -324,82 +347,84 @@
                             </td>
                             <td>
                                 <select id="job_position_<%= user.id %>">
-                                    <% jobPositions.forEach(position => { %>
-                                    <option value="<%= position %>" <%= user.job_position === position ? 'selected' : '' %>>
-                                        <%= position %>
-                                    </option>
-                                    <% }) %>
+                                    <% jobPositions.forEach(function(position) { %>
+                                        <option value="<%= position %>" <%= user.job_position === position ? 'selected' : '' %>>
+                                            <%= position %>
+                                        </option>
+                                    <% }); %>
                                 </select>
                             </td>
                             <td>
                                 <div class="sites-list">
-                                    <% sites.forEach(site => { %>
-                                    <div class="site-checkbox">
-                                        <input 
-                                            type="checkbox" 
-                                            id="site_<%= user.id %>_<%= site.id %>" 
-                                            name="site_ids[]" 
-                                            value="<%= site.id %>"
-                                            <%= user.site_ids && user.site_ids.includes(site.id) ? 'checked' : '' %>
-                                        >
-                                        <label for="site_<%= user.id %>_<%= site.id %>">
-                                            <%= site.site_name %>
-                                        </label>
-                                    </div>
-                                    <% }) %>
+                                    <% sites.forEach(function(site) { %>
+                                        <div class="site-checkbox">
+                                            <input type="checkbox" 
+                                                   id="site_<%= user.id %>_<%= site.id %>" 
+                                                   name="site_ids[]" 
+                                                   value="<%= site.id %>"
+                                                   <%= user.site_ids.includes(site.id) ? 'checked' : '' %>>
+                                            <label for="site_<%= user.id %>_<%= site.id %>">
+                                                <%= site.site_name %>
+                                            </label>
+                                        </div>
+                                    <% }); %>
                                 </div>
                             </td>
                             <td>
                                 <div class="action-buttons">
-                                    <button type="button" class="btn-edit update-button" data-user-id="<%= user.id %>">
-                                        อัปเดต
-                                    </button>
-                                    <button type="button" class="btn-delete delete-button" data-user-id="<%= user.id %>">
-                                        ลบ
-                                    </button>
+                                    <button type="button" class="btn-edit update-button" data-user-id="<%= user.id %>">อัปเดต</button>
+                                    <button type="button" class="btn-delete delete-button" data-user-id="<%= user.id %>">ลบ</button>
                                 </div>
                             </td>
                         </tr>
-                        <% }) %>
-                    </tbody>                    
+                        <% }); %>
+                    </tbody>
                 </table>
-            </div>
-            
-            <div class="project-management">
-                <h2>โครงการ</h2>
+                </div>
+            </div>   
+
+            <div class="project-management user-card">
+                <h2>จัดการโครงการ</h2>
                 <div id="projectSection">
-                    <!-- ตารางโครงการ -->
-                    <table class="site-table projects-table">
+                    <!-- เพิ่มโครงการ -->
+                    <div class="add-project" style="margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label for="new_project_name">ชื่อโครงการใหม่:</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="new_project_name" placeholder="ชื่อโครงการ" style="flex: 1;">
+                                <button class="btn-edit" onclick="addNewProject()">เพิ่มโครงการ</button>
+                            </div>
+                        </div>
+                    </div>
+            
+                    <!-- ตารางแสดงโครงการ -->
+                    <table class="site-table">
                         <thead>
                             <tr>
                                 <th>ชื่อโครงการ</th>
-                                <th>การจัดการ</th>
+                                <th style="width: 200px;">การจัดการ</th>
                             </tr>
                         </thead>
                         <tbody id="projectTable">
                             <% sites.forEach(site => { %>
-                            <tr>
+                            <tr data-site-id="<%= site.id %>">
                                 <td>
                                     <input type="text" id="site_name_<%= site.id %>" value="<%= site.site_name %>" disabled>
                                 </td>
                                 <td>
-                                    <button class="btn-edit" data-site-id="<%= site.id %>" onclick="enableProjectEdit('<%= site.id %>')">แก้ไข</button>
-                                    <button class="btn-delete" data-site-id="<%= site.id %>" onclick="deleteProject('<%= site.id %>')">ลบ</button>
-                                    <button class="btn-save" data-site-id="<%= site.id %>" onclick="saveProjectChanges('<%= site.id %>')" style="display:none;">บันทึก</button>                                    
+                                    <div class="action-buttons">
+                                        <button class="btn-edit" data-site-id="<%= site.id %>">แก้ไข</button>
+                                        <button class="btn-save" data-site-id="<%= site.id %>" style="display:none;">บันทึก</button>
+                                        <button class="btn-delete" data-site-id="<%= site.id %>">ลบ</button>
+                                    </div>
                                 </td>
                             </tr>
-                            <% }) %>
+                            <% }); %>
                         </tbody>
                     </table>
-                    <!-- เพิ่มโครงการ -->
-                    <div class="add-project">
-                        <h3>เพิ่มโครงการใหม่</h3>
-                        <input type="text" id="new_project_name" placeholder="ชื่อโครงการ">
-                        <button class="btn-add" onclick="addNewProject()">เพิ่มโครงการ</button>
-                    </div>
                 </div>
-            </div>    
-
+            </div>            
+            
         <div id="toast" style="
         display: none;
         position: fixed;
@@ -414,6 +439,7 @@
       "></div>
               
     <script src="/js/adminFrontend.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 </body>
 </html>
