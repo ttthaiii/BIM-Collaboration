@@ -1,5 +1,5 @@
 -- 1. สร้างฐานข้อมูล
-DROP DATABASE IF EXISTS railway;
+-- DROP DATABASE IF EXISTS railway;  -- Comment บรรทัดนี้ไว้
 CREATE DATABASE IF NOT EXISTS railway;
 USE railway;
 
@@ -19,7 +19,7 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role ENUM('user', 'admin') DEFAULT 'user',
-    job_position ENUM('BIM', 'Adminsite', 'PD', 'PM', 'PE', 'OE', 'SE', 'FM', 'CM') NULL,
+    job_position ENUM('BIM', 'Adminsite', 'PD', 'PM', 'PE', 'OE', 'SE', 'FM', 'CM', 'Adminsite2') NULL,
     email VARCHAR(255) NULL,
     active BOOLEAN DEFAULT true,
     last_login TIMESTAMP NULL,
@@ -112,6 +112,17 @@ CREATE TABLE rfa_history (
     INDEX idx_rfa_action (rfa_id, action)
 );
 
+CREATE TABLE upload_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    document_id INT NULL,
+    rfa_document_id INT NULL,
+    status VARCHAR(50),
+    error_message TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE SET NULL,
+    FOREIGN KEY (rfa_document_id) REFERENCES rfa_documents(id) ON DELETE SET NULL
+);
 -- 3. สร้าง Trigger
 DELIMITER //
 CREATE TRIGGER tr_rfa_document_history
@@ -180,3 +191,7 @@ MODIFY COLUMN status ENUM(
     'ไม่อนุมัติ',
     'แก้ไข'
 );
+
+SHOW TABLES;  -- ดูรายชื่อตารางทั้งหมด
+DESCRIBE documents;  -- ดูโครงสร้างตาราง documents
+DESCRIBE rfa_documents;  -- ดูโครงสร้างตาราง rfa_documents

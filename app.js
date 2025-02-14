@@ -29,7 +29,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   store: new MemoryStore({
-    checkPeriod: 86400000 // 24 hours
+    checkPeriod: 3600000 // 1 hours
   }),
   name: 'sessionId',
   resave: true,
@@ -39,13 +39,37 @@ app.use(session({
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 60 * 60 * 1000 // 1 hours
   }
 }));
 
 // View engine setup
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+
+// เพิ่ม route สำหรับ health check
+app.get('/health', async (req, res) => {
+  try {
+      const connection = await pool.getConnection();
+      await connection.query('SELECT 1');
+      connection.release();
+      
+      res.status(200).json({
+          status: 'healthy',
+          database: 'connected',
+          timestamp: new Date().toISOString()
+      });
+  } catch (error) {
+      console.error('Health check failed:', error);
+      res.status(500).json({
+          status: 'unhealthy',
+          database: 'disconnected',
+          error: error.message,
+          timestamp: new Date().toISOString()
+      });
+  }
+});
 
 // Routes
 router.get('/', (req, res) => {

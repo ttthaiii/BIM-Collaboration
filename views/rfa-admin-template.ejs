@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Update Status Shop Drawing</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(45deg, #FF5722 50%, #796B63 50%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input[type="text"],
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .results-table th, .results-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        .results-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+
+        .results-table tr:hover {
+            background-color: #f5f5f5;
+            cursor: pointer;
+        }
+
+        .search-section {
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        #documentDetails {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        #documentDetails h2 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .document-info {
+            margin-bottom: 20px;
+        }
+
+        .document-info p {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        #updateSection {
+            background-color: #fff3e0;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        .modal {
+            padding: 20px;
+            border-radius: 5px;
+            border: none;
+        }
+
+        .modal::backdrop {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            text-align: center;
+        }
+
+        .modal h3 {
+            margin-bottom: 15px;
+        }
+
+        .error-message {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .success-message {
+            color: #1b5e20;
+            background-color: #e8f5e9;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .results-table tr {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .results-table tr:hover {
+            background-color: #f5f5f5;
+        }        
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Update Status Shop Drawing</h1>
+        
+        <!-- ส่วนค้นหา -->
+        <div class="search-section">
+            <input type="text" 
+                   id="searchInput" 
+                   placeholder="ค้นหาเอกสาร (หมวดงาน-เลขที่เอกสาร หรือ ชื่อเอกสาร)" 
+                   class="search-input">
+        </div>
+
+        <!-- ตารางแสดงข้อมูล -->
+        <div id="documentTable" class="table-container">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>หมวดงาน</th>
+                        <th>เลขที่เอกสาร</th>
+                        <th>Rev.No</th>
+                        <th>รายชื่อเอกสาร</th>
+                        <th>Status</th>
+                        <th>File</th>
+                        <th>วันที่</th>
+                        <th>ผู้ส่ง</th>
+                    </tr>
+                </thead>
+                <tbody id="documentsTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- ส่วนแสดงข้อมูลเอกสาร -->
+        <div id="documentDetails" style="display: none;">
+            <h2 id="documentTitle"></h2>
+            <div class="document-info">
+                <p>หมวดงาน: <span id="categoryDisplay"></span></p>
+                <p>เลขที่เอกสาร: <span id="documentNumberDisplay"></span></p>
+                <p>สถานะเอกสาร: <span id="statusDisplay"></span></p>
+                <p>ไฟล์แนบ: <a id="fileLink" target="_blank">ดูไฟล์</a></p>
+            </div>
+
+            <!-- ส่วนอัพเดทสถานะ -->
+            <div id="updateSection">
+                <form id="updateForm">
+                    <input type="hidden" id="documentId">
+                    <div class="form-group">
+                        <label>แนบไฟล์:</label>
+                        <input type="file" id="documentFile" accept=".pdf,.doc,.docx">
+                    </div>
+                    <div class="form-group">
+                        <label>สถานะเอกสาร:</label>
+                        <select id="statusSelect" required>
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    <button type="submit" id="submitBtn">Submit</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal แสดงสถานะ -->
+        <dialog id="statusModal" class="modal">
+            <div class="modal-content">
+                <h3>เอกสารฉบับนี้ อยู่ระหว่างการอนุมัติ</h3>
+                <p>Status: <span id="documentStatus"></span></p>
+                <p>ไม่สามารถส่งซ้ำได้</p>
+                <button onclick="this.closest('dialog').close()">ปิด</button>
+            </div>
+        </dialog>
+    </div>
+
+    <script>
+        // ตัวแปรสำหรับเก็บข้อมูลสถานะที่อนุญาต
+        const ALLOWED_STATUSES = {
+            'Adminsite': ['ส่ง CM', 'แก้ไข'],
+            'Adminsite2': ['ส่ง CM', 'แก้ไข', 'อนุมัติ', 
+                'อนุมัติตามคอมเมนต์ (ไม่ต้องแก้ไข)',
+                'อนุมัติตามคอมเมนต์ (ต้องแก้ไข)', 'ไม่อนุมัติ'],
+            'CM': ['อนุมัติ', 'อนุมัติตามคอมเมนต์ (ไม่ต้องแก้ไข)',
+                'อนุมัติตามคอมเมนต์ (ต้องแก้ไข)', 'ไม่อนุมัติ']
+        };
+
+        let currentDocument = null;
+        const userPosition = '<%= user.jobPosition %>';
+
+        // โหลดข้อมูลเมื่อเปิดหน้า
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDocuments();
+            setupEventListeners();
+            populateStatusSelect();
+
+            // เพิ่ม event listener สำหรับการคลิกที่แถว
+            const tbody = document.getElementById('documentsTableBody');
+            tbody.addEventListener('click', (e) => {
+                const row = e.target.closest('tr');
+                if (row) {
+                    const documentData = {
+                        id: row.dataset.id,
+                        categoryCode: row.querySelector('td:nth-child(2)').textContent,
+                        documentNumber: row.querySelector('td:nth-child(3)').textContent,
+                        revisionNumber: row.querySelector('td:nth-child(4)').textContent,
+                        title: row.querySelector('td:nth-child(5)').textContent,
+                        status: row.querySelector('td:nth-child(6)').textContent,
+                        fileUrl: row.querySelector('td:nth-child(7) a').href
+                    };
+                    showDocumentDetails(documentData);
+                }
+            });            
+        });
+
+        // ตั้งค่า Event Listeners
+        function setupEventListeners() {
+            // Search input
+            document.getElementById('searchInput').addEventListener('input', debounce(handleSearch, 500));
+
+            // Table row click
+            document.getElementById('documentsTableBody').addEventListener('click', (e) => {
+                const row = e.target.closest('tr');
+                if (row && row.dataset.documentId) {
+                    showDocumentDetails(row.dataset.documentId);
+                }
+            });
+
+            // Update form
+            document.getElementById('updateForm').addEventListener('submit', handleUpdate);
+        }
+
+        // โหลดเอกสารทั้งหมด
+        async function loadDocuments() {
+            try {
+                const response = await fetch('/user/rfa/documents');
+                const data = await response.json();
+
+                if (data.success) {
+                    updateTable(data.documents);
+                } else {
+                    showError(data.error || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
+                }
+            } catch (error) {
+                console.error('Error loading documents:', error);
+                showError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+            }
+        }
+
+        // ค้นหาเอกสาร
+        async function handleSearch(e) {
+            const searchTerm = e.target.value.trim();
+            
+            try {
+                const response = await fetch(`/user/rfa/search?searchTerm=${encodeURIComponent(searchTerm)}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    updateTable(data.documents);
+                } else {
+                    showError(data.error || 'เกิดข้อผิดพลาดในการค้นหา');
+                }
+            } catch (error) {
+                console.error('Error searching documents:', error);
+                showError('เกิดข้อผิดพลาดในการค้นหา');
+            }
+        }
+
+        // ในฟังก์ชัน updateTable แก้ไขการแสดงผล
+        function updateTable(documents) {
+            const tbody = document.getElementById('documentsTableBody');
+            tbody.innerHTML = '';
+
+            documents.forEach((doc, index) => {
+                const tr = document.createElement('tr');
+                tr.dataset.id = doc.id;  // เพิ่ม dataset
+                tr.style.cursor = 'pointer';  // เพิ่ม style ให้รู้ว่าคลิกได้
+                tr.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${doc.category_code}</td>
+                    <td>${doc.document_number}</td>
+                    <td>${doc.revision_number}</td>
+                    <td>${doc.title}</td>
+                    <td>${doc.status}</td>
+                    <td><a href="${doc.file_url}" target="_blank">ดูไฟล์</a></td>
+                    <td>${doc.created_at}</td>
+                    <td>${doc.created_by_name}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // แสดงรายละเอียดเอกสาร
+        function showDocumentDetails(documentData) {
+            document.getElementById('documentTitle').textContent = 
+                `${documentData.categoryCode}-${documentData.documentNumber}_${documentData.title}`;
+            document.getElementById('categoryDisplay').textContent = documentData.categoryCode;
+            document.getElementById('documentNumberDisplay').textContent = documentData.documentNumber;
+            document.getElementById('statusDisplay').textContent = documentData.status;
+            document.getElementById('fileLink').href = documentData.fileUrl;
+            document.getElementById('documentId').value = documentData.id;
+
+            document.getElementById('documentDetails').style.display = 'block';
+            document.getElementById('updateSection').style.display = 'block';
+        }
+
+        // เติมตัวเลือกสถานะตามตำแหน่งงาน
+        function populateStatusSelect() {
+            const select = document.getElementById('statusSelect');
+            select.innerHTML = '';
+            
+            const statuses = ALLOWED_STATUSES[userPosition] || [];
+            statuses.forEach(status => {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status;
+                select.appendChild(option);
+            });
+        }
+
+        // อัพเดทสถานะ
+        async function handleUpdate(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('documentId', document.getElementById('documentId').value);
+            formData.append('newStatus', document.getElementById('statusSelect').value);
+            
+            const file = document.getElementById('documentFile').files[0];
+            if (file) {
+                formData.append('document', file);
+            }
+
+            try {
+                const response = await fetch('/user/rfa/update-status', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('อัพเดทสถานะสำเร็จ');
+                    loadDocuments(); // โหลดข้อมูลใหม่
+                    document.getElementById('documentDetails').style.display = 'none';
+                } else {
+                    showError(data.error || 'เกิดข้อผิดพลาดในการอัพเดทสถานะ');
+                }
+            } catch (error) {
+                console.error('Error updating status:', error);
+                showError('เกิดข้อผิดพลาดในการอัพเดทสถานะ');
+            }
+        }
+
+        // Utility Functions
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        function showError(message) {
+            const existingError = document.querySelector('.error-message');
+            if (existingError) existingError.remove();
+
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            document.querySelector('.container').insertBefore(errorDiv, document.getElementById('documentTable'));
+
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const existingSuccess = document.querySelector('.success-message');
+            if (existingSuccess) existingSuccess.remove();
+
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            document.querySelector('.container').insertBefore(successDiv, document.getElementById('documentTable'));
+
+            setTimeout(() => {
+                successDiv.remove();
+            }, 5000);
+        }
+
+        // แสดง Modal สถานะ
+        function showStatusModal(status) {
+            const modal = document.getElementById('statusModal');
+            document.getElementById('documentStatus').textContent = status;
+            modal.showModal();
+        }
+    </script>
+</body>
+</html>

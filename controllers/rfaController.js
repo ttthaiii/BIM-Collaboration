@@ -3,6 +3,29 @@ const { pool } = require('../config/database');
 const driveService = require('../config/googleDrive');
 const { uploadFile } = require('./uploadController');
 
+async function logUpload(connection, {userId, documentId = null, rfaDocumentId = null, status, error = null}) {
+    try {
+        // บันทึกลงในตาราง upload_logs
+        await connection.query(
+            `INSERT INTO upload_logs 
+            (user_id, document_id, rfa_document_id, status, error_message) 
+            VALUES (?, ?, ?, ?, ?)`,
+            [userId, documentId, rfaDocumentId, status, error]
+        );
+        
+        console.log('Log saved:', {
+            userId,
+            documentId,
+            rfaDocumentId,
+            status,
+            error
+        });
+    } catch (logError) {
+        console.error('Error logging upload:', logError);
+        // ไม่ throw error เพราะไม่อยากให้ error ของ log ทำให้ transaction หลักล้มเหลว
+    }
+}
+
 const checkRFAPermission = (jobPosition) => {
     const authorizedPositions = ['BIM', 'Adminsite', 'OE', 'CM'];
     return authorizedPositions.includes(jobPosition);
@@ -40,77 +63,46 @@ const getCategoryId = async (connection, categoryCode, siteId) => {
     }
 };
 
-// เพิ่มฟังก์ชันสำหรับการเรียกดูข้อมูลตามบทบาท
-exports.getBIMView = async (req, res) => {
-    try {
-        // ตรวจสอบสิทธิ์และดึงข้อมูลเฉพาะสำหรับ BIM
-        const data = await getBIMSpecificData(req.session.user.id);
-        res.render('rfa-bim', { user: req.session.user, data });
-    } catch (error) {
-        console.error('Error in getBIMView:', error);
-        res.status(500).render('error', { error });
-    }
-};
-
-exports.getSiteView = async (req, res) => {
-    try {
-        // ตรวจสอบสิทธิ์และดึงข้อมูลเฉพาะสำหรับ Site
-        const data = await getSiteSpecificData(req.session.user.id);
-        res.render('rfa-site', { user: req.session.user, data });
-    } catch (error) {
-        console.error('Error in getSiteView:', error);
-        res.status(500).render('error', { error });
-    }
-};
-
-exports.getCMView = async (req, res) => {
-    try {
-        // ตรวจสอบสิทธิ์และดึงข้อมูลเฉพาะสำหรับ CM
-        const data = await getCMSpecificData(req.session.user.id);
-        res.render('rfa-cm', { user: req.session.user, data });
-    } catch (error) {
-        console.error('Error in getCMView:', error);
-        res.status(500).render('error', { error });
-    }
-};
-
 exports.uploadRFADocument = async (req, res) => {
     let connection;
     try {
-        // 1. ตรวจสอบสิทธิ์ผู้ใช้
+        // Log ข้อมูลที่ได้รับจาก request
+        console.log('Received request data:', {
+            siteId: req.body.siteId,
+            category: req.body.category,
+            documentNumber: req.body.documentNumber,
+            hasFile: !!req.file
+        });
+
+        // 1. ตรวจสอบสิทธิ์
         if (!checkRFAPermission(req.session.user.jobPosition)) {
-            return res.status(403).json({ 
-                success: false, 
-                error: 'ไม่มีสิทธิ์ในการอัพโหลดเอกสาร RFA' 
-            });
+            throw new Error('ไม่มีสิทธิ์ในการอัพโหลดเอกสาร RFA');
         }
 
         // 2. ตรวจสอบไฟล์
         if (!req.file) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'กรุณาเลือกไฟล์' 
-            });
+            throw new Error('กรุณาเลือกไฟล์');
         }
 
         // 3. แปลงชื่อไฟล์เป็น UTF-8
         const fileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        console.log('File name:', fileName);
 
-        // 4. ดึง category ID
-        const [categoryResult] = await pool.query(
-            'SELECT id FROM work_categories WHERE category_code = ? AND site_id = ? AND active = true',
-            [req.body.category, req.body.siteId]
-        );
+        // 4. เริ่ม Transaction
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+        console.log('Transaction started');
 
-        if (!categoryResult.length) {
+        // 5. ดึง category ID
+        const categoryId = await getCategoryId(connection, req.body.category, req.body.siteId);
+        if (!categoryId) {
             throw new Error('ไม่พบหมวดงาน');
         }
+        console.log('Category ID:', categoryId);
 
-        const categoryId = categoryResult[0].id;
-
-        // 5. ตรวจสอบเอกสารซ้ำ
-        const [existingDoc] = await pool.query(
-            `SELECT * FROM rfa_documents 
+        // 6. ตรวจสอบเอกสารซ้ำ
+        const [existingDoc] = await connection.query(
+            `SELECT id, status FROM rfa_documents 
              WHERE site_id = ? 
              AND category_id = ? 
              AND document_number = ? 
@@ -119,86 +111,126 @@ exports.uploadRFADocument = async (req, res) => {
         );
 
         if (existingDoc.length > 0) {
-            // ลบไฟล์ที่อัพโหลดมาแล้วถ้ามีการตรวจพบว่าซ้ำ
-            if (req.file?.path) {
-                await fs.unlink(req.file.path).catch(console.error);
-            }
-            return res.status(400).json({
-                success: false,
-                error: 'เอกสารนี้มีอยู่ในระบบแล้ว'
-            });
+            throw new Error(`เอกสารนี้มีอยู่ในระบบแล้ว (สถานะ: ${existingDoc[0].status})`);
         }
 
-        // 6. อัพโหลดไฟล์ไป Google Drive
+        // 7. อัพโหลดไฟล์ไป Google Drive
+        console.log('Uploading to Google Drive...');
         const uploadResult = await driveService.uploadToDrive(
             req.session.user.id,
             req.file.path,
             fileName,
             req.file.mimetype
         );
+        console.log('Upload result:', uploadResult);
 
-        // 7. เริ่ม Database Transaction
-        connection = await pool.getConnection();
-        await connection.beginTransaction();
+        // 8. บันทึกข้อมูลในตาราง documents
+        console.log('Saving document to database...');
+        const [documentResult] = await connection.query(
+            `INSERT INTO documents 
+             (user_id, file_name, file_url, google_file_id) 
+             VALUES (?, ?, ?, ?)`,
+            [
+                req.session.user.id,
+                fileName,
+                uploadResult.webViewLink,
+                uploadResult.id
+            ]
+        );
+        console.log('Document saved:', documentResult);
 
-        try {
-            // 8. บันทึกข้อมูลเอกสาร
-            const [documentResult] = await connection.query(
-                'INSERT INTO documents (user_id, file_name, file_url, google_file_id) VALUES (?, ?, ?, ?)',
-                [
-                    req.session.user.id,
-                    fileName,
-                    uploadResult.webViewLink,
-                    uploadResult.id
-                ]
-            );
+        // 9. บันทึกข้อมูลในตาราง rfa_documents
+        console.log('Saving RFA document...');
+        const [rfaResult] = await connection.query(
+            `INSERT INTO rfa_documents 
+             (site_id, category_id, document_number, revision_number, document_id, created_by, status, title) 
+             VALUES (?, ?, ?, '00', ?, ?, 'BIM ส่งแบบ', ?)`,
+            [
+                req.body.siteId,
+                categoryId,
+                req.body.documentNumber,
+                documentResult.insertId,
+                req.session.user.id,
+                req.body.documentName || fileName
+            ]
+        );
+        console.log('RFA document saved:', rfaResult);
 
-            // 9. บันทึกข้อมูล RFA
-            await connection.query(
-                `INSERT INTO rfa_documents 
-                (site_id, category_id, document_number, revision_number, document_id, created_by, status) 
-                VALUES (?, ?, ?, '00', ?, ?, 'BIM ส่งแบบ')`,
-                [
-                    req.body.siteId,
-                    categoryId,
-                    req.body.documentNumber,
-                    documentResult.insertId,
-                    req.session.user.id
-                ]
-            );
+        // 10. Commit transaction
+        await connection.commit();
+        console.log('Transaction committed successfully');
 
-            // 10. Commit transaction
-            await connection.commit();
-            
-            return res.json({
-                success: true,
-                message: 'อัพโหลดเอกสารสำเร็จ',
+        // 11. ส่ง response กลับ
+        return res.json({
+            success: true,
+            message: 'อัพโหลดเอกสารสำเร็จ',
+            data: {
+                documentId: documentResult.insertId,
+                rfaId: rfaResult.insertId,
                 fileUrl: uploadResult.webViewLink
-            });
-
-        } catch (dbError) {
-            // 11. Rollback เมื่อเกิดข้อผิดพลาด
-            await connection.rollback();
-            throw dbError;
-        }
+            }
+        });
 
     } catch (error) {
-        console.error('Upload error:', error);
-        
-        // 12. ลบไฟล์ที่อัพโหลดมาแล้วถ้าเกิดข้อผิดพลาด
-        if (req.file?.path) {
-            await fs.unlink(req.file.path).catch(console.error);
+        // 12. จัดการ error
+        console.error('Error in uploadRFADocument:', {
+            message: error.message,
+            stack: error.stack,
+            sql: error.sql,
+            sqlMessage: error.sqlMessage
+        });
+
+        // Rollback ถ้ามี connection
+        if (connection) {
+            try {
+                await connection.rollback();
+                console.log('Transaction rolled back');
+            } catch (rollbackError) {
+                console.error('Rollback failed:', rollbackError);
+            }
         }
-        
+
+        // ลบไฟล์ชั่วคราว
+        if (req.file?.path) {
+            try {
+                await fs.unlink(req.file.path);
+                console.log('Temporary file deleted');
+            } catch (unlinkError) {
+                console.error('Failed to delete temporary file:', unlinkError);
+            }
+        }
+
         return res.status(500).json({
             success: false,
             error: error.message || 'เกิดข้อผิดพลาดในการอัพโหลดเอกสาร'
         });
+
     } finally {
-        // 13. Release connection
-        if (connection) connection.release();
+        // 13. คืน connection
+        if (connection) {
+            try {
+                connection.release();
+                console.log('Database connection released');
+            } catch (releaseError) {
+                console.error('Failed to release connection:', releaseError);
+            }
+        }
     }
 };
+
+// เพิ่มฟังก์ชันช่วยจัดการ log
+function logDebug(message, data = {}) {
+    console.log(`[DEBUG] ${message}`, data);
+}
+
+function logError(message, error) {
+    console.error(`[ERROR] ${message}`, {
+        message: error.message,
+        stack: error.stack,
+        ...(error.sql && { sql: error.sql }),
+        ...(error.sqlMessage && { sqlMessage: error.sqlMessage })
+    });
+}
 
 
 // ดึงรายการโครงการที่ user มีสิทธิ์เข้าถึง
@@ -306,7 +338,11 @@ exports.checkExistingDocument = async (req, res) => {
             WHERE r.site_id = ? 
             AND r.category_id = ?
             AND r.document_number = ?
-            AND r.status IN ('BIM ส่งแบบ', 'ส่ง CM', 'อนุมัติ', 'อนุมัติตามคอมเมนต์ (ไม่ต้องแก้ไข)')
+            AND r.status IN (
+                'แก้ไข',
+                'อนุมัติตามคอมเมนต์ (ต้องแก้ไข)',
+                'ไม่อนุมัติ'
+            )
             ORDER BY r.revision_number DESC
         `, [siteId, categoryId, documentNumber]);
 
@@ -327,22 +363,6 @@ exports.checkExistingDocument = async (req, res) => {
     }
 };
 
-// บันทึกเอกสาร RFA
-exports.saveDocument = async (req, res) => {
-    try {
-        const { siteId, categoryId, documentNumber, fileUrl, googleFileId } = req.body;
-        
-        await pool.query(`
-            INSERT INTO rfa_documents 
-            (site_id, category_id, document_number, revision_number, file_url, google_file_id, user_id)
-            VALUES (?, ?, ?, '00', ?, ?, ?)
-        `, [siteId, categoryId, documentNumber, fileUrl, googleFileId, req.session.user.id]);
-        
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-};
 
 exports.addCategory = async (req, res) => {
     try {
@@ -354,34 +374,5 @@ exports.addCategory = async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
-    }
-};
-
-// rfaController.js
-exports.getDocumentHistory = async (req, res) => {
-    try {
-        const [documents] = await pool.query(`
-            SELECT 
-                r.document_number,
-                r.revision_number,
-                r.submission_date,
-                d.file_name,
-                d.file_url,
-                s.site_name,
-                wc.category_name,
-                u.username as submitter
-            FROM rfa_documents r
-            JOIN documents d ON r.document_id = d.id
-            JOIN sites s ON r.site_id = s.id
-            JOIN work_categories wc ON r.category_id = wc.id
-            JOIN users u ON d.user_id = u.id
-            WHERE d.user_id = ?
-            ORDER BY r.submission_date DESC
-        `, [req.session.user.id]);
-
-        res.render('rfa-history', { documents });
-    } catch (error) {
-        console.error('Error fetching document history:', error);
-        res.status(500).render('error', { error });
     }
 };
