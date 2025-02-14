@@ -5,29 +5,13 @@ const DATABASE_URL = process.env.DATABASE_URL || 'mysql://root:CLrDiQvOhDsEjidrr
 
 // แยกค่า config จาก URL
 const pool = mysql.createPool({
-    host: 'junction.proxy.rlwy.net',
-    port: 49260,
-    user: 'root',
-    password: 'CLrDiQvOhDsEjidrrkGHsDZZntOUxSbt',
-    database: 'railway',
-    // กำหนดค่า config ที่ถูกต้อง
+    uri: DATABASE_URL,
     waitForConnections: true,
     connectionLimit: 5,
     queueLimit: 0
 });
 
-// ย้ายประกาศฟังก์ชันขึ้นมาก่อน
-async function keepAlive() {
-    try {
-        const connection = await pool.getConnection();
-        await connection.query('SELECT 1');
-        connection.release();
-        console.log('Connection verified:', new Date().toLocaleString());
-    } catch (err) {
-        console.error('Keep-alive check failed:', err);
-    }
-}
-
+// ทดสอบการเชื่อมต่อครั้งแรก
 const testConnection = async () => {
     let connection;
     try {
@@ -55,6 +39,7 @@ const testConnection = async () => {
         }
     }
 };
+
 
 async function saveDocument(userId, fileName, fileUrl, fileId) {
     let connection;
@@ -94,7 +79,5 @@ async function saveDocument(userId, fileName, fileUrl, fileId) {
 
 // เริ่มการตรวจสอบการเชื่อมต่อ
 testConnection();
-// ตั้งเวลาเช็คการเชื่อมต่อ (หลังจากประกาศฟังก์ชัน)
-setInterval(keepAlive, 600000);
 
 module.exports = { pool, testConnection, saveDocument };
